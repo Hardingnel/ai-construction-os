@@ -13,6 +13,90 @@ interface Message {
   timestamp: Date;
 }
 
+function detectType(prompt: string): string {
+  const lower = prompt.toLowerCase();
+  if (/\b(boq|bill of quantities|cost estimate|quantity|pricing|budget)\b/.test(lower)) return 'boq';
+  if (/\b(gis|site analysis|geospatial|terrain|flood|elevation|sunlight|coordinates?|latitude|longitude)\b/.test(lower)) return 'gis';
+  if (/\b(structural|foundation|beam|column|slab|seismic|load bearing|reinforcement)\b/.test(lower)) return 'structural';
+  return 'design';
+}
+
+function formatResult(type: string, data: any): string {
+  switch (type) {
+    case 'design':
+      return [
+        '**' + data.name + '**',
+        '- Type: ' + data.type,
+        '- Style: ' + data.style,
+        '- Area: ' + data.area_sqm + ' m\u00B2',
+        '- Bedrooms: ' + data.bedrooms,
+        '- Floors: ' + data.floors,
+        '',
+        '**Features:**',
+        ...(data.features || []).map((f: string) => '- ' + f),
+        '',
+        '**Room Layout:**',
+        ...Object.entries(data.room_layout || {}).map(([k, v]) => '- ' + k + ': ' + v),
+        '',
+        '**Recommendations:**',
+        ...(data.recommendations || []).map((r: string) => '- ' + r),
+      ].join('\n');
+    case 'boq':
+      return [
+        '**Bill of Quantities**',
+        '- Total Estimated Cost: $' + (data.total_estimated_cost || 0).toLocaleString(),
+        '- Cost per m\u00B2: $' + (data.cost_per_sqm || 0),
+        '',
+        '**Breakdown:**',
+        ...Object.entries(data.breakdown || {}).map(([k, v]) => '- ' + k.replace(/_/g, ' ') + ': $' + Number(v).toLocaleString()),
+        '',
+        '**Items:**',
+        ...(data.items || []).map((i: any) => '- ' + i.item + ': ' + i.quantity + ' ' + i.unit + ' @ $' + i.rate),
+      ].join('\n');
+    case 'gis':
+      return [
+        '**GIS Analysis Results**',
+        '- Terrain: ' + (data.elevation?.terrain_type || 'N/A'),
+        '- Elevation: ' + (data.elevation?.average_elevation || 'N/A'),
+        '- Suitability: ' + (data.elevation?.suitability || 'N/A'),
+        '',
+        '**Flood Assessment:**',
+        '- Risk: ' + (data.flood?.risk_level || 'N/A'),
+        '- Zone: ' + (data.flood?.flood_zone || 'N/A'),
+        '- ' + (data.flood?.recommendation || ''),
+        '',
+        '**Solar Analysis:**',
+        '- Solar Potential: ' + (data.sunlight?.solar_potential || 'N/A'),
+        '- Sunlight Hours: ' + (data.sunlight?.annual_sunlight_hours || 'N/A'),
+        '- Optimal Panel Angle: ' + (data.sunlight?.optimal_panel_angle || 'N/A'),
+      ].join('\n');
+    case 'structural':
+      return [
+        '**Structural Recommendations**',
+        '- Foundation: ' + data.foundation,
+        '',
+        '**Columns:**',
+        '- Size: ' + data.columns?.size,
+        '- Spacing: ' + data.columns?.spacing,
+        '- Reinforcement: ' + data.columns?.reinforcement,
+        '',
+        '**Beams:**',
+        '- Size: ' + data.beams?.size,
+        '- Reinforcement: ' + data.beams?.reinforcement,
+        '',
+        '**Slabs:**',
+        '- Thickness: ' + data.slabs?.thickness,
+        '- Reinforcement: ' + data.slabs?.reinforcement,
+        '',
+        '**Soil Requirements:**',
+        '- Bearing Capacity: ' + data.soil_requirements?.bearing_capacity,
+        '- Recommended Depth: ' + data.soil_requirements?.recommended_depth,
+      ].join('\n');
+    default:
+      return JSON.stringify(data, null, 2);
+  }
+}
+
 export function AiAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -31,35 +115,18 @@ export function AiAssistant() {
     setInput('');
     setIsLoading(true);
     try {
-      const res = await api.post<{ id: string; result: string; model: string }>('/generations', {
-        prompt: input,
-        type: 'design',
-      });
-      const resultData = JSON.parse(res.result);
-      let content = '';
-      if (resultData.name) {
-        content = [
-          '**' + resultData.name + '**',
-          '- Type: ' + resultData.type,
-          '- Style: ' + resultData.style,
-          '- Area: ' + resultData.area_sqm + ' m\u00B2',
-          '- Bedrooms: ' + resultData.bedrooms,
-          '- Floors: ' + resultData.floors,
-          '',
-          '**Features:**',
-          ...(resultData.features || []).map((f: string) => '- ' + f),
-          '',
-          '**Room Layout:**',
-          ...Object.entries(resultData.room_layout || {}).map(([k, v]) => '- ' + k + ': ' + v),
-          '',
-          '**Recommendations:**',
-          ...(resultData.recommendations || []).map((r: string) => '- ' + r),
-        ].join('\n');
+      const genType = detectType(input);
+      const params: any = { prompt: input, type: genType };
+      if (genType === 'gis') {
+        const coordMatch = input.match(/([-\d.]+),\s*([-\d.]+)/);
+        if (coordMatch) { params.latitude = parseFloat(coordMatch[1]); params.longitude = parseFloat(coordMatch[2]); }
       }
+      const res = await api.post<{ id: string; result: string; model: string }>('/generations', params);
+      const resultData = JSON.parse(res.result);
       setMessages((prev) => [...prev, {
         id: res.id,
         role: 'assistant',
-        content: content,
+        content: formatResult(genType, resultData),
         timestamp: new Date(),
       }]);
     } catch (e: any) {
@@ -76,10 +143,7 @@ export function AiAssistant() {
   return (
     <>
       {!isOpen && (
-        <button
-          onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:scale-105 transition-all duration-300 flex items-center justify-center group"
-        >
+        <button onClick={() => setIsOpen(true)} className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:scale-105 transition-all duration-300 flex items-center justify-center group">
           <MessageSquare className="w-6 h-6" />
           <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-background animate-pulse" />
         </button>
@@ -107,7 +171,7 @@ export function AiAssistant() {
               <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-gradient-to-br from-blue-600 to-purple-600 text-white')}>
                 {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
               </div>
-              <div className={cn('rounded-2xl px-4 py-3 max-w-[80%] text-sm', msg.role === 'user' ? 'bg-primary text-primary-foreground rounded-tr-sm' : 'bg-muted rounded-tl-sm')}>
+              <div className={cn('rounded-2xl px-4 py-3 max-w-[80%] text-sm whitespace-pre-line', msg.role === 'user' ? 'bg-primary text-primary-foreground rounded-tr-sm' : 'bg-muted rounded-tl-sm')}>
                 {msg.content}
               </div>
             </div>
