@@ -11,7 +11,11 @@ export const NAV_ITEMS = [
   { label: 'Projects', icon: 'FolderKanban', path: '/projects', shortcut: 'Ctrl+7' },
   { label: 'Marketplace', icon: 'Store', path: '/marketplace', shortcut: 'Ctrl+8' },
   { label: 'Team', icon: 'Users', path: '/team', shortcut: 'Ctrl+9' },
-  { label: 'Settings', icon: 'Settings', path: '/settings', shortcut: 'Ctrl+0' },
+  { label: 'Compliance', icon: 'Shield', path: '/compliance', shortcut: 'Ctrl+0' },
+  { label: 'Sustainability', icon: 'Leaf', path: '/sustainability', shortcut: 'Ctrl+Shift+S' },
+  { label: 'AI Tutor', icon: 'GraduationCap', path: '/tutor', shortcut: 'Ctrl+Shift+T' },
+  { label: 'Interoperability', icon: 'GitCompare', path: '/interoperability', shortcut: 'Ctrl+Shift+I' },
+  { label: 'Settings', icon: 'Settings', path: '/settings', shortcut: 'Alt+S' },
 ];
 
 export const BUILDING_STYLES = [

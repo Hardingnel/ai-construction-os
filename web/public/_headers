@@ -1,0 +1,30 @@
+# Cloudflare Headers — AI Construction OS
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(self)
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://res.cloudinary.com; connect-src 'self' https://api.aicos.com wss://api.aicos.com; font-src 'self' data:; media-src 'self' https://res.cloudinary.com;
+
+# Cache static assets aggressively
+*.css
+  Cache-Control: public, max-age=31536000, immutable
+*.js
+  Cache-Control: public, max-age=31536000, immutable
+*.png
+  Cache-Control: public, max-age=31536000, immutable
+*.svg
+  Cache-Control: public, max-age=31536000, immutable
+*.ico
+  Cache-Control: public, max-age=31536000, immutable
+*.woff2
+  Cache-Control: public, max-age=31536000, immutable
+*.jpg
+  Cache-Control: public, max-age=31536000, immutable
+*.webp
+  Cache-Control: public, max-age=31536000, immutable
+
+# HTML pages — no cache
+*.html
+  Cache-Control: no-cache, no-store, must-revalidate

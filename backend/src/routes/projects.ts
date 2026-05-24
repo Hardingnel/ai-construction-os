@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
-import { prisma } from '../index';
+import { prisma } from '../app';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { createNotification } from './notifications';
 
 const router = Router();
 
@@ -41,6 +42,7 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
     const project = await prisma.project.create({
       data: { name, description, type, location, budget: budget ? parseFloat(budget) : undefined, style, userId: req.userId! },
     });
+    createNotification({ title: 'Project Created', message: `"${project.name}" has been created`, type: 'success', link: `/projects/${project.id}`, userId: req.userId! }).catch(() => {});
     res.status(201).json(project);
   } catch (error) {
     res.status(500).json({ message: 'Failed to create project' });
@@ -49,10 +51,14 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
 
 router.put('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
+    const existing = await prisma.project.findFirst({ where: { id: req.params.id, userId: req.userId } });
     const project = await prisma.project.updateMany({
       where: { id: req.params.id, userId: req.userId },
       data: req.body,
     });
+    if (existing && req.body.name && existing.name !== req.body.name) {
+      createNotification({ title: 'Project Renamed', message: `"${existing.name}" renamed to "${req.body.name}"`, type: 'info', link: `/projects/${req.params.id}`, userId: req.userId! }).catch(() => {});
+    }
     res.json(project);
   } catch (error) {
     res.status(500).json({ message: 'Failed to update project' });

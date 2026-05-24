@@ -2,15 +2,17 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Brain, PenTool, Box, Map, Calculator,
-  FolderKanban, Store, Users, Settings, ChevronLeft, ChevronRight, Construction
+  FolderKanban, Store, Users, Settings, ChevronLeft, ChevronRight, Construction, LogOut, Shield, Leaf, GraduationCap, GitCompare, Bell
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { NAV_ITEMS } from '@/lib/constants';
+import { useAppStore } from '@/store/appStore';
+import { NotificationsPanel } from '@/components/notifications/NotificationsPanel';
 
 const iconMap: Record<string, any> = {
   LayoutDashboard, Brain, PenTool, Box, Map, Calculator,
-  FolderKanban, Store, Users, Settings
+  FolderKanban, Store, Users, Settings, Shield, Leaf, GraduationCap, GitCompare
 };
 
 export function Sidebar() {
@@ -30,11 +32,12 @@ export function Sidebar() {
           <Construction className="h-4 w-4 text-white" />
         </div>
         {!collapsed && (
-          <div className="overflow-hidden">
+          <div className="flex-1 overflow-hidden">
             <p className="text-sm font-bold leading-tight">AI COS</p>
             <p className="text-[10px] text-muted-foreground leading-tight">Construction OS</p>
           </div>
         )}
+        <NotificationsPanel />
       </div>
 
       <div className="flex-1 py-2 space-y-1 px-2 overflow-hidden">
@@ -63,7 +66,15 @@ export function Sidebar() {
         })}
       </div>
 
-      <div className="p-2 border-t">
+      <div className="p-2 border-t space-y-1">
+        <button
+          onClick={() => { useAppStore.getState().logout(); navigate('/login'); }}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sidebar-foreground/70"
+          title="Sign Out"
+        >
+          <LogOut className="h-4 w-4 flex-shrink-0" />
+          {!collapsed && <span className="truncate">Sign Out</span>}
+        </button>
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-sidebar-accent text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors"

@@ -1,8 +1,21 @@
 import { Router, Response } from 'express';
-import { prisma } from '../index';
+import { prisma } from '../app';
 import { authenticate, AuthRequest } from '../middleware/auth';
 
 const router = Router();
+
+router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const projectId = req.query.projectId as string;
+    if (!projectId) return res.status(400).json({ message: 'projectId query param required' });
+    const items = await prisma.bOQItem.findMany({
+      where: { projectId, project: { userId: req.userId } },
+    });
+    res.json(items);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch BOQ items' });
+  }
+});
 
 router.get('/:projectId', authenticate, async (req: AuthRequest, res: Response) => {
   try {

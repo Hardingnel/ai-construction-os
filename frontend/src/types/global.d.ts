@@ -2,13 +2,17 @@ export {};
 
 declare global {
   interface Window {
-    electronAPI: {
+    electronAPI?: {
       minimize: () => Promise<void>;
       maximize: () => Promise<void>;
       close: () => Promise<void>;
       isMaximized: () => Promise<boolean>;
       selectFile: (options: any) => Promise<any>;
       saveFile: (options: any) => Promise<any>;
+      showNotification: (title: string, body: string) => Promise<void>;
+      setAutoStart: (enable: boolean) => Promise<void>;
+      getAutoStart: () => Promise<boolean>;
+      focusWindow: () => Promise<void>;
       onMaximizeChange: (callback: (isMaximized: boolean) => void) => void;
       onUpdateChecking: (callback: () => void) => void;
       onUpdateAvailable: (callback: (info: any) => void) => void;

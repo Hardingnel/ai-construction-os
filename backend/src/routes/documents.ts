@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
-import { prisma } from '../index';
+import { prisma } from '../app';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { createNotification } from './notifications';
 
 const router = Router();
 
@@ -18,11 +19,11 @@ router.get('/:projectId', authenticate, async (req: AuthRequest, res: Response) 
 
 router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const { name, type, data, projectId } = req.body;
+    const { name, type, data, projectId, url: inputUrl } = req.body;
     const doc = await prisma.document.create({
-      data: { name, type, data, projectId },
+      data: { name, type, data, projectId, url: inputUrl || `/uploads/${Date.now()}_${name}` },
     });
-    res.status(201).json(doc);
+    createNotification({ title: 'Document Uploaded', message: `"${name}" added to project documents`, type: 'info', link: `/documents?projectId=${projectId}`, userId: req.userId! }).catch(() => {});
   } catch (error) {
     res.status(500).json({ message: 'Failed to create document' });
   }

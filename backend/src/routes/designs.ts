@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
-import { prisma } from '../index';
+import { prisma } from '../app';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { createNotification } from './notifications';
 
 const router = Router();
 
@@ -20,8 +21,14 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { name, type, style, description, prompt, data, projectId } = req.body;
     const design = await prisma.design.create({
-      data: { name, type, style, description, prompt, data: data ? JSON.stringify(data) : undefined, projectId },
+      data: {
+        name, type, style, description, prompt,
+        data: data ? JSON.stringify(data) : undefined,
+        project: { connect: { id: projectId } },
+        user: { connect: { id: req.userId! } },
+      },
     });
+    createNotification({ title: 'Design Saved', message: `Design "${name}" saved to project`, type: 'info', link: `/designs?projectId=${projectId}`, userId: req.userId! }).catch(() => {});
     res.status(201).json(design);
   } catch (error) {
     res.status(500).json({ message: 'Failed to create design' });

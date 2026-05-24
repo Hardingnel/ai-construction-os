@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt, { type SignOptions } from 'jsonwebtoken';
-import { prisma } from '../index';
+import { prisma } from '../app';
 import { authenticate, AuthRequest } from '../middleware/auth';
 
 const router = Router();
@@ -15,6 +15,8 @@ const signToken = (userId: string, role: string): string => {
 router.post('/register', async (req: Request, res: Response) => {
   try {
     const { email, password, name, role } = req.body;
+    if (!email || !password || !name) return res.status(400).json({ message: 'Email, password, and name are required' });
+    if (password.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters' });
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return res.status(400).json({ message: 'Email already registered' });
     const hashedPassword = await bcrypt.hash(password, 12);
@@ -26,25 +28,44 @@ router.post('/register', async (req: Request, res: Response) => {
       token,
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
     });
-  } catch (error) {
-    res.status(500).json({ message: 'Registration failed' });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || 'Registration failed' });
   }
 });
 
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ message: 'Email and password are required' });
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+    if (!user) return res.status(401).json({ message: 'Invalid email or password' });
     const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return res.status(401).json({ message: 'Invalid credentials' });
+    if (!valid) return res.status(401).json({ message: 'Invalid email or password' });
     const token = signToken(user.id, user.role);
     res.json({
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar, company: user.company, phone: user.phone },
     });
-  } catch (error) {
-    res.status(500).json({ message: 'Login failed' });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || 'Login failed' });
+  }
+});
+
+router.post('/refresh', async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) return res.status(400).json({ message: 'Refresh token required' });
+    res.status(401).json({ message: 'Session refresh not available' });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.post('/logout', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
   }
 });
 
@@ -52,26 +73,56 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
-      select: { id: true, name: true, email: true, role: true, avatar: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, avatar: true, phone: true, company: true, createdAt: true },
     });
     if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json(user);
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch user' });
+    const [projectCount, designCount] = await Promise.all([
+      prisma.project.count({ where: { userId: user.id } }),
+      prisma.design.count({ where: { userId: user.id } }),
+    ]);
+    res.json({ ...user, projectCount, designCount });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
   }
 });
 
 router.put('/profile', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const { name, avatar } = req.body;
+    const { name, avatar, phone, company } = req.body;
     const user = await prisma.user.update({
       where: { id: req.userId },
-      data: { name, avatar },
-      select: { id: true, name: true, email: true, role: true, avatar: true },
+      data: { name, avatar, phone, company },
+      select: { id: true, name: true, email: true, role: true, avatar: true, phone: true, company: true },
     });
     res.json(user);
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to update profile' });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.put('/password', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) return res.status(401).json({ message: 'Current password is incorrect' });
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+    await prisma.user.update({ where: { id: req.userId }, data: { password: hashedPassword } });
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get('/users', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const users = await prisma.user.findMany({
+      select: { id: true, name: true, email: true, role: true, avatar: true },
+    });
+    res.json(users);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
   }
 });
 

@@ -1,0 +1,24 @@
+# Cloudflare Pages / Workers configuration
+# Deploy web app to Cloudflare Pages for edge delivery
+
+name = "ai-construction-os"
+compatibility_date = "2024-09-01"
+pages_build_output_dir = "web/.next"
+
+# Route web traffic
+routes = [
+  { pattern = "app.aicos.com/*", zone_id = "" },
+  { pattern = "api.aicos.com/*", zone_id = "" },
+]
+
+# Environment variables
+[vars]
+NEXT_PUBLIC_API_URL = "https://api.aicos.com/api"
+
+# Production
+[env.production]
+vars = { ENVIRONMENT = "production" }
+
+# Preview
+[env.preview]
+vars = { ENVIRONMENT = "preview" }

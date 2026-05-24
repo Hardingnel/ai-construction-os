@@ -7,6 +7,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   isMaximized: () => ipcRenderer.invoke('is-maximized'),
   selectFile: (options: any) => ipcRenderer.invoke('select-file', options),
   saveFile: (options: any) => ipcRenderer.invoke('save-file', options),
+  showNotification: (title: string, body: string) => ipcRenderer.invoke('show-notification', { title, body }),
+  setAutoStart: (enable: boolean) => ipcRenderer.invoke('set-auto-start', enable),
+  getAutoStart: () => ipcRenderer.invoke('get-auto-start'),
+  focusWindow: () => ipcRenderer.invoke('focus-window'),
   onMaximizeChange: (callback: (isMaximized: boolean) => void) => {
     ipcRenderer.on('maximize-change', (_event, isMaximized) => callback(isMaximized));
   },

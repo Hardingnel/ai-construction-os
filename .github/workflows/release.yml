@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  electron-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - name: Build Electron
+        run: npm run dist
+        working-directory: frontend
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Windows Installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: aicos-windows-installer
+          path: frontend/release/*.exe
+
+  docker-release:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [backend, web, frontend, python]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract version
+        id: version
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.${{ matrix.service }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/${{ matrix.service }}:${{ steps.version.outputs.tag }}
+            ghcr.io/${{ github.repository }}/${{ matrix.service }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [electron-build, docker-release]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Windows Installer
+        uses: actions/download-artifact@v4
+        with:
+          name: aicos-windows-installer
+          path: artifacts
+      - name: Generate Release Notes
+        run: |
+          echo "# AI Construction OS ${{ github.ref_name }}" > release-notes.md
+          echo "" >> release-notes.md
+          echo "See the [commit log](https://github.com/${{ github.repository }}/commits/${{ github.ref_name }}) for details." >> release-notes.md
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          files: artifacts/*

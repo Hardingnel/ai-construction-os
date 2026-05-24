@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, X, Bot, User, ChevronRight, MessageSquare, Mic, Sparkles } from 'lucide-react';
+import { Send, X, Bot, User, ChevronRight, MessageSquare, Mic, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { api } from '@/lib/api';
 
 interface Message {
   id: string;
@@ -31,25 +32,51 @@ export function AiAssistant() {
 
   const handleSend = async () => {
     if (!input.trim()) return;
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input,
-      timestamp: new Date(),
-    };
+    const userMessage: Message = { id: Date.now().toString(), role: 'user', content: input, timestamp: new Date() };
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
-    setTimeout(() => {
-      const assistantMessage: Message = {
+    try {
+      const res = await api.post<{ id: string; result: string; model: string }>('/generations', {
+        prompt: input,
+        type: 'design',
+      });
+      const resultData = JSON.parse(res.result);
+      let content = '';
+      if (resultData.name) {
+        content = [
+          '**' + resultData.name + '**',
+          '- Type: ' + resultData.type,
+          '- Style: ' + resultData.style,
+          '- Area: ' + resultData.area_sqm + ' m\u00B2',
+          '- Bedrooms: ' + resultData.bedrooms,
+          '- Floors: ' + resultData.floors,
+          '',
+          '**Features:**',
+          ...(resultData.features || []).map((f: string) => '- ' + f),
+          '',
+          '**Room Layout:**',
+          ...Object.entries(resultData.room_layout || {}).map(([k, v]) => '- ' + k + ': ' + v),
+          '',
+          '**Recommendations:**',
+          ...(resultData.recommendations || []).map((r: string) => '- ' + r),
+        ].join('\n');
+      }
+      setMessages((prev) => [...prev, {
+        id: res.id,
+        role: 'assistant',
+        content: content,
+        timestamp: new Date(),
+      }]);
+    } catch (e: any) {
+      setMessages((prev) => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `I understand you're interested in: "${input}". Let me process that and generate the appropriate design, analysis, and documentation for your project.`,
+        content: `Sorry, I encountered an error: ${e.message}. Please try again later.`,
         timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-      setIsLoading(false);
-    }, 1000);
+      }]);
+    }
+    setIsLoading(false);
   };
 
   return (

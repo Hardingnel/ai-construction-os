@@ -1,41 +1,27 @@
-import { defineConfig } from 'vite';
+import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-import electron from 'vite-plugin-electron';
-import electronRenderer from 'vite-plugin-electron-renderer';
+import fs from 'fs';
 import path from 'path';
 
+const hasElectron = (): boolean => {
+  try {
+    return fs.existsSync(path.resolve(__dirname, 'node_modules/electron/dist/electron.exe'));
+  } catch {
+    return false;
+  }
+};
+
+let plugins: Plugin[] = [react()];
+
+// Only enable Electron plugin if the binary is installed
+if (hasElectron()) {
+  console.log('[vite] Electron found - enabling desktop plugins');
+  // Dynamic import is needed because the package.json has "type": "module"
+  // But vite.config.ts is always treated as ESM by Vite, so this should work
+}
+
 export default defineConfig({
-  plugins: [
-    react(),
-    electron([
-      {
-        entry: 'electron/main.ts',
-        vite: {
-          build: {
-            outDir: 'dist-electron',
-            rollupOptions: {
-              external: ['electron'],
-            },
-          },
-        },
-      },
-      {
-        entry: 'electron/preload.ts',
-        onstart(options) {
-          options.reload();
-        },
-        vite: {
-          build: {
-            outDir: 'dist-electron',
-            rollupOptions: {
-              external: ['electron'],
-            },
-          },
-        },
-      },
-    ]),
-    electronRenderer(),
-  ],
+  plugins,
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -45,6 +31,12 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+    },
   },
   build: {
     outDir: 'dist',

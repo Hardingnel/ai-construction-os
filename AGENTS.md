@@ -1,141 +1,159 @@
 # AI Construction Operating System (AI COS)
 
-## Project Overview
-AI-powered Architecture, Civil Engineering, BIM, GIS, Construction Management, and Smart Infrastructure desktop application built with Electron + React + TypeScript + Node.js + Python.
-
-## Architecture
+## Architecture — Hybrid Web + Desktop Platform
 
 ```
 ai-cos/
-├── frontend/           # Electron + React + Vite desktop app
-│   ├── electron/       # Electron main/preload (TypeScript)
-│   ├── src/
-│   │   ├── components/ # UI components, layout, 3d, gis, bim, chat
-│   │   ├── pages/      # Route pages (10 pages)
-│   │   ├── store/      # Zustand state management
-│   │   ├── lib/        # Utilities, API client, constants
-│   │   └── styles/     # Global CSS with design system
-│   └── resources/      # Icons and assets
-├── backend/            # Node.js + Express + Prisma API
-│   ├── src/
-│   │   ├── routes/     # Auth, Projects, BOQ, Tasks, etc.
-│   │   └── middleware/ # JWT authentication
-│   └── prisma/         # Schema + SQLite database
-├── python-services/    # FastAPI AI microservices
-│   └── app/            # AI agents, analysis, generation
-├── shared/             # Shared TypeScript types
-├── config/             # Configuration files
-├── assets/             # Static assets
-├── scripts/            # Build/deploy scripts
-└── database/           # Database migrations
+├── web/                  # Next.js 14 Web Application (PRIMARY)
+│   ├── src/app/          # App router: page.tsx, login, dashboard
+│   ├── src/components/   # Shared React components
+│   ├── src/lib/          # API client, utilities
+│   └── src/store/        # Zustand (persisted)
+│
+├── frontend/             # Electron Desktop App (SECONDARY CLIENT)
+│   ├── electron/         # Electron main/preload
+│   ├── src/pages/        # 10 route pages
+│   ├── src/components/   # UI, layout, sync, 3d, gis, bim, chat
+│   ├── src/services/     # Sync engine, offline cache
+│   ├── src/hooks/        # useSync hook
+│   └── src/store/        # Zustand (persisted)
+│
+├── backend/              # MASTER API SERVER (port 3001)
+│   ├── src/routes/       # auth, projects, designs, boq, tasks,
+│   │                     # documents, team, sync, upload, realtime
+│   ├── src/services/     # syncService, storageService
+│   ├── src/middleware/   # JWT auth, zod validation
+│   └── prisma/           # SQLite schema + seed data
+│
+├── python-services/      # AI Microservices (port 8000)
+│   └── app/              # FastAPI: design gen, BOQ, GIS, structural
+│
+├── shared/               # Shared TypeScript types
+├── config/               # Config files
+├── assets/               # Static assets
+└── scripts/              # Build/deploy scripts
 ```
 
-## Tech Stack
+## System Roles
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 18, TypeScript, Vite |
-| Desktop | Electron, electron-builder |
-| Styling | Tailwind CSS, ShadCN UI, Framer Motion |
-| State | Zustand, TanStack Query |
-| 3D/BIM | Three.js, React Three Fiber |
-| GIS | Mapbox GL |
-| Backend | Node.js, Express, Prisma ORM |
-| Database | SQLite (local), PostgreSQL (cloud) |
-| AI | Python, FastAPI, LangChain |
-| Realtime | Socket.IO |
-| Security | JWT, bcrypt, Helmet, rate-limit |
-| Charts | Recharts |
+| Component | Role | Tech |
+|-----------|------|------|
+| **Web App** (port 3000) | Primary user interface, central platform | Next.js 14, React 18, Tailwind |
+| **Desktop App** (port 5173) | High-performance client, offline-capable | Electron, React 18, Vite |
+| **Backend API** (port 3001) | Master data + auth + sync server | Express, Prisma, SQLite |
+| **Python AI** (port 8000) | AI/ML processing microservices | FastAPI, LangChain |
+| **Python Manager** (in backend) | Auto-starts/restarts Python AI, health checks every 15s, max 5 retries with exponential backoff | Node.js child_process |
 
-## Commands
+## Data Flow
+
+```
+Web Browser ──► Next.js App ──► Backend API ◄── Electron Desktop
+                                      │
+                                 Python AI Services
+```
+
+- The **backend** is the single source of truth
+- Both web and desktop apps consume the same REST APIs
+- Desktop has a **sync engine** for offline/background sync with conflict resolution
+- Desktop uses an **offline cache** with TTL-based invalidation
+- **Socket.IO** provides realtime collaboration across both platforms
+
+## Python Service Manager
+
+The backend includes an automatic Python AI service manager (`backend/src/services/pythonServiceManager.ts`):
+- **Auto-start**: Python AI starts when backend starts (via `index.ts`)
+- **Health checks**: Every 15s via `GET /api/health` on port 8000
+- **Auto-restart**: On crash/exit, retries up to 5 times with exponential backoff (2s, 3s, 4.5s, 6.75s, 10.125s)
+- **Status API**: `GET /api/python/status` shows availability, PID, uptime, retry count, last error
+- **Restart API**: `POST /api/python/restart` (authenticated) manually restarts the service
+- **Fallback**: If Python AI is offline, `/api/generations` uses a local fallback engine and marks results with `_fallback: true`
+- **Service script**: `python-services/service.py` (production mode via uvicorn.Server, handles SIGTERM/SIGINT)
+
+## Key Commands
 
 ```bash
-# Development (all services)
-npm run dev
+# HYBRID: Start everything (web + desktop + backend + python)
+start-hybrid.bat
 
-# Frontend only
-cd frontend && npm run dev
+# Individual services
+cd web && npm run dev           # Web app (port 3000)
+cd frontend && npm run dev      # Desktop app (port 5173)
+cd backend && npm run dev       # Backend API (port 3001)
+cd python-services && python service.py  # AI (port 8000) — production
+cd python-services && python run.py       # AI (port 8000) — dev with hot-reload
 
-# Backend only
-cd backend && npm run dev
+# Build
+cd frontend && npm run build    # Desktop production build
+cd backend && npm run build     # Backend TypeScript compile
 
-# Python services
-cd python-services && python run.py
+# Desktop installer
+cd frontend && npm run dist     # Windows .exe installer
 
-# Build frontend
-cd frontend && npm run build
-
-# Package Electron installer
-cd frontend && npm run dist
-
-# Database setup
-cd backend && npx prisma db push
+# Database
+cd backend && npx prisma db push && npx tsx src/seed.ts
 ```
-
-## Key Config Files
-
-- `frontend/.env.local` - Frontend env vars (API URLs, Mapbox token)
-- `backend/.env` - Backend env vars (JWT secret, DB URL)
-- `python-services/.env` - Python env vars (API keys)
-- `frontend/vite.config.ts` - Vite + Electron build config
-- `frontend/tailwind.config.js` - Design system tokens
-- `backend/prisma/schema.prisma` - Database schema
 
 ## API Endpoints
 
-### Backend (port 3001)
-- `POST /api/auth/register` - User registration
-- `POST /api/auth/login` - User login
-- `GET /api/auth/me` - Current user
-- `GET/POST /api/projects` - Project CRUD
-- `GET/POST /api/designs` - Design management
-- `GET/POST /api/boq` - BOQ items
-- `GET/POST /api/tasks` - Task management
-- `GET/POST /api/documents` - Documents
+### Master Backend (port 3001)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /api/auth/register | Create account |
+| POST | /api/auth/login | Sign in |
+| GET | /api/auth/me | Current user |
+| GET/POST/PUT/DELETE | /api/projects | Project CRUD |
+| GET/POST/DELETE | /api/designs | Design management |
+| GET/POST/PUT/DELETE | /api/boq | BOQ items |
+| GET/POST/PUT/DELETE | /api/tasks | Tasks with assignees |
+| GET/POST/DELETE | /api/documents | Project documents |
+| GET/POST/DELETE | /api/team | Team management |
+| POST | /api/sync | Single sync operation |
+| POST | /api/sync/batch | Batch sync operations |
+| POST | /api/sync/snapshot | Full sync snapshot |
+| POST | /api/sync/resolve-conflict | Conflict resolution |
+| POST | /api/upload | File upload (single) |
+| POST | /api/upload/multiple | File upload (multiple) |
+| POST | /api/realtime/comments | Realtime comments |
 
-### Python (port 8000)
-- `POST /api/generate/design` - AI design generation
-- `POST /api/generate/boq` - BOQ estimation
-- `POST /api/analyze/gis` - GIS analysis
-- `POST /api/analyze/structural` - Structural analysis
-- `POST /api/generate/document` - Document generation
+### Python AI (port 8000)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /api/generate/design | AI building design |
+| POST | /api/generate/boq | BOQ estimation |
+| POST | /api/analyze/gis | GIS/terrain analysis |
+| POST | /api/analyze/structural | Structural engineering |
 
-## Design System
+## Sync Architecture
 
-- Dark/light mode with CSS variables
-- Glassmorphism cards (`.glass`, `.glass-card`)
-- Gradient text (`.text-gradient-primary`)
-- Futuristic glow effects (`.glow-border`)
-- Grid background pattern (`.bg-grid`)
-- Custom scrollbar styles
-- Animation utilities (framer-motion)
-
-## Desktop Build
-
-```bash
-# Production installer
-cd frontend && npm run dist
-
-# Output: dist-electron/AI Construction OS Setup.exe
-
-# Config: electron-builder in package.json
-# - Windows: NSIS installer
-# - Auto-updater support
-# - Icons in resources/
+```
+Desktop App                    Backend
+    │                             │
+    ├─ enqueue(op) ──────────────►│─ processSync()
+    │◄── { success, data } ──────┤
+    │                             │
+    ├─ syncSnapshot(lastSync) ───►│─ getSyncSnapshot()
+    │◄── { projects, designs } ──┤
+    │                             │
+    │  Conflict Detection:        │
+    │  If version mismatch ───────► 409 Conflict
+    │◄── { serverData, local } ──┤
+    │─ resolveConflict() ─────────►
 ```
 
-## Known Commands for Development
+- **Auto-sync** every 30 seconds
+- **Offline queue** persists in localStorage
+- **Max 3 retries** per operation
+- **TTL-based cache** (5 min default)
+- **Online/offline listeners** for connectivity changes
+
+## Desktop Executable
 
 ```bash
-# Type check frontend
-cd frontend && npx tsc --noEmit
-
-# Type check backend
-cd backend && npx tsc --noEmit
-
-# Generate Prisma client
-cd backend && npx prisma generate
-
-# Apply DB schema changes
-cd backend && npx prisma db push
+cd frontend && npm run dist
+# Output: release/AI Construction OS Setup.exe
+# Config: electron-builder in package.json
+# - Windows: NSIS installer
+# - Auto-updater: electron-updater
+# - Icons: resources/icon.svg
+# - Frame: frameless with custom title bar
 ```
