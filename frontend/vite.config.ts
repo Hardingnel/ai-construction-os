@@ -1,4 +1,4 @@
-import { defineConfig, Plugin } from 'vite';
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import fs from 'fs';
 import path from 'path';
@@ -11,7 +11,7 @@ const hasElectron = (): boolean => {
   }
 };
 
-let plugins: Plugin[] = [react()];
+const plugins = [react()];
 
 // Only enable Electron plugin if the binary is installed
 if (hasElectron()) {
