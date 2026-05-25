@@ -1,10 +1,11 @@
 import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { PrismaClient } from '@prisma/client';
+import helmet from 'helmet';
+import cors from 'cors';
+import rateLimit from 'express-rate-limit';
+
 import { authRouter } from './routes/auth';
 import { projectsRouter } from './routes/projects';
 import { designsRouter } from './routes/designs';
@@ -148,4 +149,4 @@ export function getIO() { return io; }
 
 export function getPrisma() { return prisma; }
 
-export { app, httpServer, io };
+export { app, httpServer, io, prisma };
