@@ -2,10 +2,17 @@ import { PrismaClient } from '@prisma/client';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 export const prisma = new PrismaClient();
-export const supabase: SupabaseClient = createClient(
-  process.env.SUPABASE_URL || 'https://rwvhjyvqdydrpcwsglbz.supabase.co',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-);
+
+let _supabase: SupabaseClient | null = null;
+function getSupabase(): SupabaseClient {
+  if (!_supabase) {
+    const url = process.env.SUPABASE_URL || 'https://rwvhjyvqdydrpcwsglbz.supabase.co';
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+    if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY is required for fallback');
+    _supabase = createClient(url, key);
+  }
+  return _supabase;
+}
 
 const modelToTable: Record<string, string> = {
   user: 'User',
@@ -74,6 +81,7 @@ function applyOrderBy(q: any, orderBy: any) {
 async function executeFallback(model: string, method: string, args: any) {
   const table = modelToTable[model];
   if (!table) throw new Error(`Unknown model: ${model}`);
+  const supabase = getSupabase();
   const base = supabase.from(table);
 
   if (method === 'findUnique') {
@@ -154,7 +162,7 @@ async function executeFallback(model: string, method: string, args: any) {
   }
 
   if (method === 'count') {
-    let q: any = supabase.from(table).select('*', { count: 'exact', head: true });
+    let q: any = getSupabase().from(table).select('*', { count: 'exact', head: true });
     if (args?.where) q = applyWhere(q, args.where);
     const { count, error } = await q;
     if (error) throw error;
