@@ -31,6 +31,12 @@ interface TerrainPoint {
   elev: number;
 }
 
+interface AnalysisResult {
+  flood?: { risk_level: string; flood_zone: string; recommendation: string };
+  elevation?: { average_elevation: string; terrain_type: string; suitability: string };
+  sunlight?: { annual_sunlight_hours: number; solar_potential: string; optimal_panel_angle: string };
+}
+
 const analysisLayers = [
   { id: 'flood', label: 'Flood Zones', icon: AlertTriangle, active: true, color: 'text-blue-500' },
   { id: 'elevation', label: 'Elevation', icon: Mountain, active: true, color: 'text-emerald-500' },
@@ -71,13 +77,34 @@ function generateTerrain(
   return points;
 }
 
+async function runAnalysis(lat: number, lng: number, setAnalyzing: (v: boolean) => void, setAnalysis: (a: AnalysisResult | null) => void, setOverallSuitability: (s: string) => void, setAnalysisError: (e: string | null) => void) {
+  setAnalyzing(true);
+  setAnalysisError(null);
+  try {
+    const res = await api.post('/gis/analyze', { latitude: lat, longitude: lng, analysis_types: ['flood', 'elevation', 'sunlight'] });
+    if (res.analysis) {
+      setAnalysis(res.analysis);
+      setOverallSuitability(res.overall_suitability || 'moderate');
+    }
+  } catch (err: any) {
+    setAnalysisError(err.message || 'Analysis failed');
+    setAnalysis(null);
+  } finally {
+    setAnalyzing(false);
+  }
+}
+
 export function GISAnalysis() {
   const [layers, setLayers] = useState(analysisLayers);
   const [location, setLocation] = useState('');
   const [gisData, setGisData] = useState<GISRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [terrain, setTerrain] = useState<TerrainPoint[]>([]);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [overallSuitability, setOverallSuitability] = useState<string>('');
   const [viewCenter, setViewCenter] = useState<{ lat: number; lng: number }>({ lat: 8.48, lng: -13.23 });
   const [zoomLevel, setZoomLevel] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -234,6 +261,7 @@ export function GISAnalysis() {
   const focusOnRecord = (rec: GISRecord) => {
     setViewCenter({ lat: rec.latitude, lng: rec.longitude });
     setTerrain(generateTerrain(rec.latitude, rec.longitude, rec.elevation || 30, 15));
+    runAnalysis(rec.latitude, rec.longitude, setAnalyzing, setAnalysis, setOverallSuitability, setAnalysisError);
     toast.success(`Centered on ${rec.latitude.toFixed(4)}, ${rec.longitude.toFixed(4)}`);
   };
 
@@ -246,6 +274,7 @@ export function GISAnalysis() {
       if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
         setViewCenter({ lat, lng });
         setTerrain(generateTerrain(lat, lng, 30, 15));
+        runAnalysis(lat, lng, setAnalyzing, setAnalysis, setOverallSuitability, setAnalysisError);
         toast.success(`Navigated to ${lat}, ${lng}`);
         return;
       }
@@ -294,7 +323,7 @@ export function GISAnalysis() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={exportReport}><Download className="w-4 h-4 mr-2" /> Export Map</Button>
-          <Button className="bg-gradient-to-r from-emerald-500 to-teal-600" onClick={() => { toast('New analysis: Select a project first'); }}><Plus className="w-4 h-4 mr-2" /> New Analysis</Button>
+          <Button className="bg-gradient-to-r from-emerald-500 to-teal-600" onClick={() => { if (gisData.length > 0) { const rec = gisData[0]; runAnalysis(rec.latitude, rec.longitude, setAnalyzing, setAnalysis, setOverallSuitability, setAnalysisError); } else { toast.error('No GIS data available. Create a project first.'); } }}><Plus className="w-4 h-4 mr-2" /> New Analysis</Button>
         </div>
       </div>
 
@@ -389,12 +418,19 @@ export function GISAnalysis() {
                   <span className="text-xs font-medium">{currentGIS.latitude.toFixed(4)}, {currentGIS.longitude.toFixed(4)}</span>
                 </div>
                 <div className="mt-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                  <p className="text-xs font-medium text-emerald-500 mb-1">AI Assessment</p>
-                  <p className="text-xs text-muted-foreground">
-                    {currentGIS.floodRisk === 'low'
-                      ? 'Site shows favorable conditions for construction. Low flood risk with good drainage potential.'
-                      : 'Site requires additional flood mitigation measures. Consider elevated foundation design.'}
-                  </p>
+                  <p className="text-xs font-medium text-emerald-500 mb-1">AI Assessment {analyzing && <Loader2 className="inline w-3 h-3 animate-spin" />}</p>
+                  {analysis ? (
+                    <>
+                      {analysis.flood && <p className="text-xs text-muted-foreground">Flood: {analysis.flood.risk_level} — {analysis.flood.recommendation}</p>}
+                      {analysis.elevation && <p className="text-xs text-muted-foreground mt-1">Elevation: {analysis.elevation.average_elevation} ({analysis.elevation.terrain_type})</p>}
+                      {analysis.sunlight && <p className="text-xs text-muted-foreground mt-1">Solar: {analysis.sunlight.solar_potential} — {analysis.sunlight.annual_sunlight_hours}h/yr</p>}
+                      {overallSuitability && <p className={`text-xs mt-2 font-medium ${overallSuitability === 'highly_suitable' ? 'text-emerald-500' : overallSuitability === 'moderate' ? 'text-yellow-500' : 'text-red-500'}`}>Overall: {overallSuitability.replace('_', ' ')}</p>}
+                    </>
+                  ) : analysisError ? (
+                    <p className="text-xs text-red-500">{analysisError}</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Click a site or search coordinates to run AI analysis.</p>
+                  )}
                 </div>
                 {gisData.slice(1).map(rec => (
                   <button key={rec.id} onClick={() => focusOnRecord(rec)} className="w-full text-left p-2 rounded-lg hover:bg-accent/50 transition-colors border border-border/50">
