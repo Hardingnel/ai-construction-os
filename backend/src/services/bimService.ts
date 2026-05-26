@@ -1,4 +1,7 @@
 import { prisma } from '../app';
+import { pythonService } from './pythonServiceManager';
+
+const PYTHON_API = process.env.PYTHON_API_URL || 'http://localhost:8000';
 
 interface ElementInput {
   type: string;
@@ -336,6 +339,7 @@ export async function generateBIMAssistantResponse(query: string, floorPlanId?: 
   let context = '';
   let planName = '';
   let elementCount = 0;
+  let elementsContext = '';
 
   if (floorPlanId) {
     const plan = await prisma.bIMFloorPlan.findUnique({
@@ -346,6 +350,38 @@ export async function generateBIMAssistantResponse(query: string, floorPlanId?: 
       planName = plan.name;
       elementCount = plan.bimElements.length;
       context = `Working on floor plan "${plan.name}" with ${elementCount} elements. `;
+      const typeCounts: Record<string, number> = {};
+      for (const el of plan.bimElements) {
+        typeCounts[el.type] = (typeCounts[el.type] || 0) + 1;
+      }
+      elementsContext = Object.entries(typeCounts).map(([t, c]) => `${c} ${t}`).join(', ');
+    }
+  }
+
+  if (pythonService.isHealthy()) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const resp = await fetch(`${PYTHON_API}/api/analyze/bim-assistant`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query,
+          plan_name: planName,
+          element_count: elementCount,
+          elements_context: elementsContext,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (resp.ok) {
+        const data: any = await resp.json();
+        if (data?.response) {
+          return data.response as { answer: string; suggestions: string[] };
+        }
+      }
+    } catch (e: any) {
+      console.log(`BIM Assistant AI request failed: ${e.message}`);
     }
   }
 
