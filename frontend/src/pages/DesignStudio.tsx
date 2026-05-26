@@ -77,6 +77,8 @@ export function DesignStudio() {
   const [future, setFuture] = useState<CanvasElement[][]>([]);
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [aiAssisting, setAiAssisting] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<string | null>(null);
   const [planName, setPlanName] = useState('Untitled Floor Plan');
   const [showColorPicker, setShowColorPicker] = useState<'fill' | 'stroke'>('fill');
 
@@ -291,6 +293,26 @@ export function DesignStudio() {
     finally { setSaving(false); }
   }, [planName, elements]);
 
+  const handleAiAssist = useCallback(async () => {
+    setAiAssisting(true);
+    setAiSuggestions(null);
+    try {
+      const elementSummary = elements.map(el => `${el.type} at (${Math.round(el.x)}, ${Math.round(el.y)})${el.width ? ` ${el.width}x${el.height}` : ''}`).join('; ');
+      const res = await api.post('/generations', {
+        prompt: `Analyze this floor plan design: ${elementSummary}. Suggest improvements for layout, structure, and sustainability.`,
+        type: 'design',
+        building_type: 'residential',
+        style: 'modern',
+      });
+      const result = typeof res.result === 'string' ? res.result : JSON.stringify(res.result, null, 2);
+      setAiSuggestions(result);
+    } catch {
+      toast.error('AI Assist failed');
+    } finally {
+      setAiAssisting(false);
+    }
+  }, [elements]);
+
   const handleImportImage = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -331,7 +353,7 @@ export function DesignStudio() {
           <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Image className="w-4 h-4 mr-2" /> Import</Button>
           <Button variant="outline" onClick={exportSVG}><Download className="w-4 h-4 mr-2" /> Export</Button>
           <Button variant="outline" onClick={handleSave} disabled={saving}><Save className="w-4 h-4 mr-2" /> {saving ? 'Saving...' : 'Save'}</Button>
-          <Button className="bg-gradient-to-r from-blue-600 to-purple-600" onClick={() => toast('AI Assist: Generating suggestions from current plan...')}><Sparkles className="w-4 h-4 mr-2" /> AI Assist</Button>
+          <Button className="bg-gradient-to-r from-blue-600 to-purple-600" onClick={handleAiAssist} disabled={aiAssisting}><Sparkles className="w-4 h-4 mr-2" /> {aiAssisting ? 'Thinking...' : 'AI Assist'}</Button>
         </div>
       </div>
 
@@ -485,6 +507,18 @@ export function DesignStudio() {
           </Card>
         </div>
       </div>
+
+      {aiSuggestions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setAiSuggestions(null)}>
+          <div className="bg-card border border-border rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[70vh] overflow-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h3 className="font-semibold flex items-center gap-2"><Sparkles className="w-4 h-4 text-blue-500" /> AI Suggestions</h3>
+              <button onClick={() => setAiSuggestions(null)} className="text-muted-foreground hover:text-foreground text-xl leading-none">&times;</button>
+            </div>
+            <div className="p-4 text-sm whitespace-pre-wrap text-foreground/90">{aiSuggestions}</div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }
