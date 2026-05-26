@@ -617,6 +617,66 @@ async def analyze_bim_assistant(req: BIMAssistantRequest):
         suggestions = ["How to add a wall?", "What is a clash?", "Explain IFC classification"]
 
     return {"success": True, "response": {"answer": answer, "suggestions": suggestions}, "provider": "fallback"}
+
+
+class TutorRequest(BaseModel):
+    mode: str = "mentor"
+    query: str
+    level: Optional[str] = "intermediate"
+    context: Optional[str] = None
+    session_history: Optional[str] = None
+
+
+@app.post("/api/analyze/tutor")
+async def analyze_tutor(req: TutorRequest):
+    is_explain = req.mode == "explain"
+    system_prompt = (
+        "You are an expert construction engineering tutor. "
+        + (
+            f"Given a construction concept and difficulty level ({req.level}), "
+            "provide a clear educational explanation. "
+            "Return JSON with: found (bool), concept (string), "
+            "explanation (string, detailed for the given level), "
+            "category (string), relatedTerms (array of strings), "
+            "nextSteps (array of 3 strings). "
+            "If the concept is not recognized, set found to false and suggest related concepts."
+            if is_explain
+            else "Given a user question about construction, provide an expert answer. "
+            "Return JSON with: answer (string with markdown), "
+            "relatedTerms (array of relevant topic strings). "
+            "Be helpful, practical, and reference real construction practices."
+        )
+        + " Output ONLY valid JSON, no markdown, no explanation."
+    )
+    user_prompt = (
+        f"Concept: {req.query}, Level: {req.level}"
+        if is_explain
+        else f"Question: {req.query}\nContext: {req.context or 'general'}"
+    )
+    try:
+        raw = llm_service.generate(system_prompt, user_prompt)
+        if raw:
+            data = _parse_json(raw)
+            return {"success": True, "tutor": data, "provider": "ai"}
+    except Exception as e:
+        print(f"Tutor LLM error: {e}")
+
+    fallback = ({
+        "found": False,
+        "concept": req.query,
+        "explanation": f"I don't have information on '{req.query}' yet.",
+        "category": "General",
+        "relatedTerms": [],
+        "nextSteps": ["Search the glossary", "Ask a different question", "Start a mentor session"],
+    } if is_explain else {
+        "answer": f"I'm not sure about that. Could you rephrase?\n\nI can help with construction concepts, definitions, project management, costs, safety, and sustainability.",
+        "relatedTerms": [],
+    })
+    return {"success": True, "tutor": fallback, "provider": "fallback"}
+
+
+@app.post("/api/generate/document")
+async def generate_document(doc_type: str, project_data: dict):
     try:
         return {
             "success": True,

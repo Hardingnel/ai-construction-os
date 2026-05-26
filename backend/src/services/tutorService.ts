@@ -1,4 +1,7 @@
 import { prisma } from '../app';
+import { pythonService } from './pythonServiceManager';
+
+const PYTHON_API = process.env.PYTHON_API_URL || 'http://localhost:8000';
 
 interface ExplainRequest {
   concept: string;
@@ -155,6 +158,32 @@ const GLOSSARY_ENTRIES = [
 ];
 
 export async function explainConcept(req: ExplainRequest) {
+  if (pythonService.isHealthy()) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const resp = await fetch(`${PYTHON_API}/api/analyze/tutor`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'explain',
+          query: req.concept,
+          level: req.level || 'intermediate',
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (resp.ok) {
+        const data: any = await resp.json();
+        if (data?.tutor?.found !== undefined) {
+          return data.tutor;
+        }
+      }
+    } catch (e: any) {
+      console.log(`Tutor explain AI request failed: ${e.message}`);
+    }
+  }
+
   const entry = CONSTRUCTION_CONCEPTS[req.concept.toLowerCase()];
   if (!entry) {
     return {
@@ -272,6 +301,32 @@ export async function mentorChat(req: MentorRequest) {
 }
 
 async function generateMentorResponse(question: string, context?: string): Promise<{ response: string; relatedTerms: string[] }> {
+  if (pythonService.isHealthy()) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const resp = await fetch(`${PYTHON_API}/api/analyze/tutor`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'mentor',
+          query: question,
+          context: context || 'general',
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (resp.ok) {
+        const data: any = await resp.json();
+        if (data?.tutor?.answer) {
+          return { response: data.tutor.answer, relatedTerms: data.tutor.relatedTerms || [] };
+        }
+      }
+    } catch (e: any) {
+      console.log(`Tutor mentor AI request failed: ${e.message}`);
+    }
+  }
+
   const q = question.toLowerCase();
   const relatedTerms: string[] = [];
 
