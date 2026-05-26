@@ -13,6 +13,7 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx src/seed.ts",
     "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
     "test": "jest --forceExit --detectOpenHandles",
     "test:watch": "jest --watch --forceExit"
   },
