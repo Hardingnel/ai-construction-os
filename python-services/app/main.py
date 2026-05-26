@@ -498,8 +498,125 @@ async def analyze_compliance(req: ComplianceRequest):
     return {"success": True, "compliance": {"country": req.country, "countryName": req.country, "total": 0, "passed": 0, "failed": 0, "warnings": 0, "score": 0, "results": []}, "provider": "fallback"}
 
 
-@app.post("/api/generate/document")
-async def generate_document(doc_type: str, project_data: dict):
+class BIMAssistantRequest(BaseModel):
+    query: str
+    plan_name: Optional[str] = None
+    element_count: int = 0
+    elements_context: Optional[str] = None
+
+
+@app.post("/api/analyze/bim-assistant")
+async def analyze_bim_assistant(req: BIMAssistantRequest):
+    system_prompt = (
+        "You are an expert BIM (Building Information Modeling) assistant. "
+        "Given a user query and optional floor plan context, provide a helpful answer "
+        "about BIM modeling, floor plan creation, IFC classification, clash detection, "
+        "quantity takeoff, or construction documentation. "
+        "Return a JSON object with: answer (string with markdown formatting) and "
+        "suggestions (array of 3-4 follow-up question strings). "
+        "Be concise, practical, and use the floor plan context when provided. "
+        "Output ONLY valid JSON, no markdown, no explanation."
+    )
+    user_prompt = (
+        f"Query: {req.query}\n"
+        f"Context: Working on floor plan \"{req.plan_name or 'untitled'}\" "
+        f"with {req.element_count} elements.\n"
+        f"Elements: {req.elements_context or 'N/A'}"
+    )
+    try:
+        raw = llm_service.generate(system_prompt, user_prompt)
+        if raw:
+            data = _parse_json(raw)
+            return {"success": True, "response": data, "provider": "ai"}
+    except Exception as e:
+        print(f"BIM Assistant LLM error: {e}")
+
+    q = req.query.lower()
+    if any(w in q for w in ["wall", "partition"]) or ("draw" in q and "plan" in q):
+        answer = (
+            f"To create walls in your floor plan:\n\n"
+            f"1. Click \"Add Wall\" from the element palette\n"
+            f"2. Click on the canvas to place the wall\n"
+            f"3. Drag the edges to adjust length and thickness\n"
+            f"4. Use the properties panel to set type, material, height\n"
+            f"5. Walls connect automatically when placed end-to-end"
+        )
+        suggestions = ["How do I add doors in walls?", "What wall thickness for exterior?", "Explain wall layers"]
+    elif "door" in q:
+        answer = (
+            f"Adding doors to your floor plan:\n\n"
+            f"1. Place a wall first, then select \"Add Door\"\n"
+            f"2. The door will snap to the nearest wall\n"
+            f"3. Configure type, width (0.9m standard), height (2.1m)\n"
+            f"4. Doors show swing direction on the plan"
+        )
+        suggestions = ["What size door for bathroom?", "How to add double doors?", "Door clearance requirements"]
+    elif "window" in q:
+        answer = (
+            f"Placing windows in your floor plan:\n\n"
+            f"1. Add a wall, then select \"Add Window\"\n"
+            f"2. Windows auto-snap to wall centerlines\n"
+            f"3. Configure type, width, sill height (0.9m)\n"
+            f"4. Window area should be >= 10% of room area for natural lighting"
+        )
+        suggestions = ["Window-to-wall ratio best practice", "What is egress window?", "Window placement rules"]
+    elif any(w in q for w in ["room", "space", "area"]):
+        answer = (
+            f"Creating rooms and spaces:\n\n"
+            f"1. Select \"Add Room\" and drag to create boundaries\n"
+            f"2. Room elements auto-calculate area in m\u00B2\n"
+            f"3. Configure function, occupancy, floor finish\n"
+            f"4. Rooms feed into quantity takeoff and schedules"
+        )
+        suggestions = ["Calculate total floor area", "Room area standards", "How to create room schedule"]
+    elif any(w in q for w in ["clash", "conflict", "overlap"]):
+        answer = (
+            f"Clash detection:\n\n"
+            f"- Run \"Detect Clashes\" to find overlapping elements\n"
+            f"- Categories: High, Medium, Low severity\n"
+            f"- Common: door intersecting wall, pipes through beams\n"
+            f"- Fix positions in element properties panel"
+        )
+        suggestions = ["Run clash detection now", "What is hard clash vs soft clash?", "How to resolve clashes"]
+    elif any(w in q for w in ["classif", "ifc", "standard"]):
+        answer = (
+            f"BIM Classification and IFC Standards:\n\n"
+            f"Walls -> IfcWall, Doors -> IfcDoor\n"
+            f"Windows -> IfcWindow, Rooms -> IfcSpace\n"
+            f"Columns -> IfcColumn, Beams -> IfcBeam\n"
+            f"Run \"Auto-Classify\" to assign correct IFC types"
+        )
+        suggestions = ["Run auto-classification", "What is IFC 2x3 vs IFC4?", "Export to IFC format"]
+    elif any(w in q for w in ["quantity", "takeoff", "boq", "count"]):
+        answer = (
+            f"Quantity Takeoff from BIM model:\n\n"
+            f"Run \"Quantity Takeoff\" to generate:\n"
+            f"- Element counts by type\n"
+            f"- Total wall length (linear meters)\n"
+            f"- Total floor area (m\u00B2)\n"
+            f"- Material quantities and subtype breakdown"
+        )
+        suggestions = ["Run quantity takeoff", "Export quantities to BOQ", "How to calculate concrete volume"]
+    elif any(w in q for w in ["hello", "hi", "help"]):
+        answer = (
+            "Welcome to the AI BIM Assistant! I can help with:\n\n"
+            "- Drawing floor plans (walls, doors, windows, rooms)\n"
+            "- IFC classification and auto-classification\n"
+            "- Clash detection and resolution\n"
+            "- Quantity takeoff and measurements\n"
+            "- Export to IFC, gbXML, DAE, OBJ formats"
+        )
+        suggestions = ["How to create a floor plan?", "What is BIM classification?", "Run clash detection"]
+    else:
+        answer = (
+            f"I understand you're asking about \"{req.query}\". "
+            f"I can help with floor plan elements, BIM classification, "
+            f"clash detection, quantity takeoff, and exports. "
+            f"Could you be more specific?"
+        )
+        suggestions = ["How to add a wall?", "What is a clash?", "Explain IFC classification"]
+
+    return {"success": True, "response": {"answer": answer, "suggestions": suggestions}, "provider": "fallback"}
     try:
         return {
             "success": True,
