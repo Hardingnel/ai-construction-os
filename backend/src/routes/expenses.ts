@@ -1,12 +1,12 @@
 import { Router, Response } from 'express';
-import { prisma } from '../app';
+import { prisma, db } from '../app';
 import { authenticate, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
 router.get('/:projectId', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const expenses = await prisma.expense.findMany({
+    const expenses = await db.expense.findMany({
       where: { projectId: req.params.projectId },
       orderBy: { date: 'desc' },
     });
@@ -19,7 +19,7 @@ router.get('/:projectId', authenticate, async (req: AuthRequest, res: Response) 
 
 router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const expense = await prisma.expense.create({ data: req.body });
+    const expense = await db.expense.create({ data: req.body });
     res.status(201).json(expense);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -28,7 +28,7 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
 
 router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    await prisma.expense.delete({ where: { id: req.params.id } });
+    await db.expense.delete({ where: { id: req.params.id } });
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ message: error.message });

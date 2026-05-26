@@ -1,4 +1,4 @@
-import { prisma } from '../app';
+import { prisma, db } from '../app';
 import { pythonService } from './pythonServiceManager';
 
 const PYTHON_API = process.env.PYTHON_API_URL || 'http://localhost:8000';
@@ -178,7 +178,7 @@ function generateRecommendations(result: SustainabilityResult, input: Assessment
 }
 
 async function assessFallback(input: AssessmentInput): Promise<SustainabilityResult> {
-  const project = await prisma.project.findUnique({ where: { id: input.projectId } });
+  const project = await db.project.findUnique({ where: { id: input.projectId } });
   if (!project) throw new Error('Project not found');
 
   const area = input.area || project.area || 300;
@@ -214,7 +214,7 @@ async function assessFallback(input: AssessmentInput): Promise<SustainabilityRes
 
   const passiveCooling = getPassiveCooling(style, floors);
 
-  const gisData = await prisma.gISData.findFirst({ where: { projectId: input.projectId } });
+  const gisData = await db.gISData.findFirst({ where: { projectId: input.projectId } });
   const floodResilience = getFloodResilience(gisData?.floodRisk);
 
   const greenMaterialScore = Math.round(getGreenMaterialScore(style));
@@ -267,7 +267,7 @@ async function assessFallback(input: AssessmentInput): Promise<SustainabilityRes
 }
 
 export async function assessSustainability(input: AssessmentInput): Promise<SustainabilityResult> {
-  const project = await prisma.project.findUnique({ where: { id: input.projectId } });
+  const project = await db.project.findUnique({ where: { id: input.projectId } });
   if (!project) throw new Error('Project not found');
 
   const area = input.area || project.area || 300;
@@ -277,7 +277,7 @@ export async function assessSustainability(input: AssessmentInput): Promise<Sust
   const style = input.style || project.style || 'Modern';
   const bedrooms = input.bedrooms || project.bedrooms || 3;
 
-  const gisData = await prisma.gISData.findFirst({ where: { projectId: input.projectId } });
+  const gisData = await db.gISData.findFirst({ where: { projectId: input.projectId } });
   const floodRisk = gisData?.floodRisk || null;
 
   let result: SustainabilityResult | null = null;
@@ -320,7 +320,7 @@ export async function assessSustainability(input: AssessmentInput): Promise<Sust
     result = await assessFallback(input);
   }
 
-  await prisma.sustainabilityAssessment.create({
+  await db.sustainabilityAssessment.create({
     data: {
       projectId: input.projectId,
       userId: input.userId,
@@ -346,7 +346,7 @@ export async function assessSustainability(input: AssessmentInput): Promise<Sust
 }
 
 export async function getAssessmentHistory(projectId: string) {
-  return prisma.sustainabilityAssessment.findMany({
+  return db.sustainabilityAssessment.findMany({
     where: { projectId },
     orderBy: { createdAt: 'desc' },
     take: 20,
@@ -354,7 +354,7 @@ export async function getAssessmentHistory(projectId: string) {
 }
 
 export async function getLatestAssessment(projectId: string) {
-  return prisma.sustainabilityAssessment.findFirst({
+  return db.sustainabilityAssessment.findFirst({
     where: { projectId },
     orderBy: { createdAt: 'desc' },
   });

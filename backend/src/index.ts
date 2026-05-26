@@ -1,4 +1,4 @@
-import { httpServer, prisma } from './app';
+import { httpServer, prisma, db } from './app';
 import { pythonService } from './services/pythonServiceManager';
 
 const PORT = process.env.PORT || 3001;

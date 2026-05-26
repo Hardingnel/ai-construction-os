@@ -1,11 +1,11 @@
 import { Router, Response } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { prisma } from '../app';
+import { prisma, db } from '../app';
 
 const router = Router();
 
 router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
-  const notifications = await prisma.notification.findMany({
+  const notifications = await db.notification.findMany({
     where: { userId: req.userId! },
     orderBy: { createdAt: 'desc' },
     take: 50,
@@ -14,14 +14,14 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
 });
 
 router.get('/unread-count', authenticate, async (req: AuthRequest, res: Response) => {
-  const count = await prisma.notification.count({
+  const count = await db.notification.count({
     where: { userId: req.userId!, read: false },
   });
   res.json({ count });
 });
 
 router.put('/:id/read', authenticate, async (req: AuthRequest, res: Response) => {
-  await prisma.notification.updateMany({
+  await db.notification.updateMany({
     where: { id: req.params.id, userId: req.userId! },
     data: { read: true },
   });
@@ -29,7 +29,7 @@ router.put('/:id/read', authenticate, async (req: AuthRequest, res: Response) =>
 });
 
 router.put('/read-all', authenticate, async (req: AuthRequest, res: Response) => {
-  await prisma.notification.updateMany({
+  await db.notification.updateMany({
     where: { userId: req.userId!, read: false },
     data: { read: true },
   });
@@ -38,7 +38,7 @@ router.put('/read-all', authenticate, async (req: AuthRequest, res: Response) =>
 
 router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
   const { title, message, type, link, userId } = req.body;
-  const notification = await prisma.notification.create({
+  const notification = await db.notification.create({
     data: { title, message, type: type || 'info', link, userId: userId || req.userId! },
   });
   const { getIO } = await import('../app');
@@ -58,7 +58,7 @@ export async function createNotification(data: {
   link?: string;
   userId: string;
 }) {
-  const notification = await prisma.notification.create({
+  const notification = await db.notification.create({
     data: { title: data.title, message: data.message, type: data.type || 'info', link: data.link, userId: data.userId },
   });
   try {

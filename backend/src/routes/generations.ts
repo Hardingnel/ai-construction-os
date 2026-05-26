@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { prisma } from '../app';
+import { prisma, db } from '../app';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { pythonService } from '../services/pythonServiceManager';
 
@@ -66,7 +66,7 @@ function buildPythonBody(type: string, body: any): any {
 
 router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const generations = await prisma.aIGeneration.findMany({
+    const generations = await db.aIGeneration.findMany({
       where: { userId: req.userId! },
       orderBy: { createdAt: 'desc' },
       take: 50,
@@ -114,7 +114,7 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
       ? pythonResult?.[endpoint.resultKey] || FALLBACKS[normalizedType]({ ...params, prompt })
       : pythonResult?.analysis || FALLBACKS[normalizedType]({ ...params, prompt });
 
-    const gen = await prisma.aIGeneration.create({
+    const gen = await db.aIGeneration.create({
       data: {
         prompt,
         type,
@@ -132,7 +132,7 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
 
 router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const gen = await prisma.aIGeneration.findFirst({
+    const gen = await db.aIGeneration.findFirst({
       where: { id: req.params.id, userId: req.userId! },
     });
     if (!gen) return res.status(404).json({ message: 'Generation not found' });

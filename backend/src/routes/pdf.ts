@@ -1,12 +1,12 @@
 import { Router, Response } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { prisma } from '../app';
+import { prisma, db } from '../app';
 import { generateComplianceReport, generateBOQReport, generateSustainabilityReport } from '../services/pdfService';
 
 const router = Router();
 
 router.get('/compliance/:checkId', authenticate, async (req: AuthRequest, res: Response) => {
-  const check = await prisma.complianceCheck.findUnique({
+  const check = await db.complianceCheck.findUnique({
     where: { id: req.params.checkId },
     include: { results: true, project: true },
   });
@@ -20,7 +20,7 @@ router.get('/compliance/:checkId', authenticate, async (req: AuthRequest, res: R
 });
 
 router.get('/boq/:projectId', authenticate, async (req: AuthRequest, res: Response) => {
-  const project = await prisma.project.findUnique({
+  const project = await db.project.findUnique({
     where: { id: req.params.projectId },
     include: { boqItems: true },
   });
@@ -34,13 +34,13 @@ router.get('/boq/:projectId', authenticate, async (req: AuthRequest, res: Respon
 });
 
 router.get('/sustainability/:projectId', authenticate, async (req: AuthRequest, res: Response) => {
-  const assessment = await prisma.sustainabilityAssessment.findFirst({
+  const assessment = await db.sustainabilityAssessment.findFirst({
     where: { projectId: req.params.projectId },
   });
   if (!assessment) {
     return res.status(404).json({ error: 'Not found' });
   }
-  const project = await prisma.project.findUnique({ where: { id: req.params.projectId } });
+  const project = await db.project.findUnique({ where: { id: req.params.projectId } });
   if (!project || project.userId !== req.userId!) {
     return res.status(404).json({ error: 'Not found' });
   }

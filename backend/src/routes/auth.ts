@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt, { type SignOptions } from 'jsonwebtoken';
-import { prisma } from '../app';
+import { prisma, db } from '../app';
 import { authenticate, AuthRequest } from '../middleware/auth';
 
 const router = Router();
@@ -17,10 +17,10 @@ router.post('/register', async (req: Request, res: Response) => {
     const { email, password, name, role } = req.body;
     if (!email || !password || !name) return res.status(400).json({ message: 'Email, password, and name are required' });
     if (password.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters' });
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const existing = await db.user.findUnique({ where: { email } });
     if (existing) return res.status(400).json({ message: 'Email already registered' });
     const hashedPassword = await bcrypt.hash(password, 12);
-    const user = await prisma.user.create({
+    const user = await db.user.create({
       data: { email, password: hashedPassword, name, role: role || 'architect' },
     });
     const token = signToken(user.id, user.role);
@@ -37,7 +37,7 @@ router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ message: 'Email and password are required' });
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await db.user.findUnique({ where: { email } });
     if (!user) return res.status(401).json({ message: 'Invalid email or password' });
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ message: 'Invalid email or password' });
@@ -71,14 +71,14 @@ router.post('/logout', authenticate, async (req: AuthRequest, res: Response) => 
 
 router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const user = await prisma.user.findUnique({
+    const user = await db.user.findUnique({
       where: { id: req.userId },
       select: { id: true, name: true, email: true, role: true, avatar: true, phone: true, company: true, createdAt: true },
     });
     if (!user) return res.status(404).json({ message: 'User not found' });
     const [projectCount, designCount] = await Promise.all([
-      prisma.project.count({ where: { userId: user.id } }),
-      prisma.design.count({ where: { userId: user.id } }),
+      db.project.count({ where: { userId: user.id } }),
+      db.design.count({ where: { userId: user.id } }),
     ]);
     res.json({ ...user, projectCount, designCount });
   } catch (error: any) {
@@ -89,7 +89,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
 router.put('/profile', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { name, avatar, phone, company } = req.body;
-    const user = await prisma.user.update({
+    const user = await db.user.update({
       where: { id: req.userId },
       data: { name, avatar, phone, company },
       select: { id: true, name: true, email: true, role: true, avatar: true, phone: true, company: true },
@@ -103,12 +103,12 @@ router.put('/profile', authenticate, async (req: AuthRequest, res: Response) => 
 router.put('/password', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    const user = await db.user.findUnique({ where: { id: req.userId } });
     if (!user) return res.status(404).json({ message: 'User not found' });
     const valid = await bcrypt.compare(currentPassword, user.password);
     if (!valid) return res.status(401).json({ message: 'Current password is incorrect' });
     const hashedPassword = await bcrypt.hash(newPassword, 12);
-    await prisma.user.update({ where: { id: req.userId }, data: { password: hashedPassword } });
+    await db.user.update({ where: { id: req.userId }, data: { password: hashedPassword } });
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -117,7 +117,7 @@ router.put('/password', authenticate, async (req: AuthRequest, res: Response) =>
 
 router.get('/users', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const users = await prisma.user.findMany({
+    const users = await db.user.findMany({
       select: { id: true, name: true, email: true, role: true, avatar: true },
     });
     res.json(users);

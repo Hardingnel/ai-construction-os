@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { upload, storageService } from '../services/storage/storageService';
 import { uploadToCloudinary, deleteFromCloudinary, isConfigured } from '../services/storage/cloudinaryService';
-import { prisma } from '../app';
+import { prisma, db } from '../app';
 import { createNotification } from './notifications';
 import fs from 'fs';
 
@@ -25,7 +25,7 @@ router.post('/', authenticate, upload.single('file'), async (req: AuthRequest, r
       } catch {}
     }
     if (projectId) {
-      const doc = await prisma.document.create({
+      const doc = await db.document.create({
         data: {
           name: req.file.originalname,
           type: documentType || req.file.mimetype,
@@ -58,7 +58,7 @@ router.post('/multiple', authenticate, upload.array('files', 10), async (req: Au
           if (cloudResult) url = cloudResult.secureUrl;
         } catch {}
       }
-      const doc = await prisma.document.create({
+      const doc = await db.document.create({
         data: { name: file.originalname, type: file.mimetype, url, projectId: projectId || '', size: file.size },
       });
       documents.push(doc);

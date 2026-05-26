@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { prisma } from '../app';
+import { prisma, db } from '../app';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { runComplianceCheck, getSupportedCountries } from '../services/complianceService';
 import { createNotification } from './notifications';
@@ -12,7 +12,7 @@ router.get('/countries', (_req, res: Response) => {
 
 router.get('/codes', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const codes = await prisma.buildingCode.findMany({
+    const codes = await db.buildingCode.findMany({
       where: req.query.country ? { country: req.query.country as string } : {},
       orderBy: [{ country: 'asc' }, { code: 'asc' }],
     });
@@ -27,14 +27,14 @@ router.post('/check/:projectId', authenticate, async (req: AuthRequest, res: Res
     const { country } = req.body;
     if (!country) return res.status(400).json({ message: 'Country is required' });
 
-    const project = await prisma.project.findFirst({
+    const project = await db.project.findFirst({
       where: { id: req.params.projectId, userId: req.userId },
     });
     if (!project) return res.status(404).json({ message: 'Project not found' });
 
     const summary = await runComplianceCheck(project, country);
 
-    const check = await prisma.complianceCheck.create({
+    const check = await db.complianceCheck.create({
       data: {
         projectId: project.id,
         userId: req.userId!,
@@ -50,7 +50,7 @@ router.post('/check/:projectId', authenticate, async (req: AuthRequest, res: Res
     });
 
     for (const result of summary.results) {
-      await prisma.complianceCheckResult.create({
+      await db.complianceCheckResult.create({
         data: {
           checkId: check.id,
           passed: result.status === 'passed',
@@ -81,7 +81,7 @@ router.post('/check/:projectId', authenticate, async (req: AuthRequest, res: Res
 
 router.get('/history/:projectId', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const checks = await prisma.complianceCheck.findMany({
+    const checks = await db.complianceCheck.findMany({
       where: { projectId: req.params.projectId, userId: req.userId },
       orderBy: { createdAt: 'desc' },
       take: 20,
@@ -94,7 +94,7 @@ router.get('/history/:projectId', authenticate, async (req: AuthRequest, res: Re
 
 router.get('/results/:checkId', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const check = await prisma.complianceCheck.findFirst({
+    const check = await db.complianceCheck.findFirst({
       where: { id: req.params.checkId, userId: req.userId },
       include: { results: { orderBy: { createdAt: 'asc' } } },
     });
@@ -107,7 +107,7 @@ router.get('/results/:checkId', authenticate, async (req: AuthRequest, res: Resp
 
 router.post('/seed', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const existing = await prisma.buildingCode.count();
+    const existing = await db.buildingCode.count();
     if (existing > 0) return res.json({ message: `Already seeded: ${existing} codes` });
 
     const codes: Array<{ country: string; code: string; title: string; description: string; category: string; requirement: string; severity: string }> = [
@@ -126,7 +126,7 @@ router.post('/seed', authenticate, async (req: AuthRequest, res: Response) => {
       { country: 'ghana', code: 'GH-ENV-001', title: 'Drainage System', description: 'Stormwater drainage must handle 100mm/hr rainfall intensity.', category: 'Environmental', requirement: 'Drainage for 100mm/hr rainfall', severity: 'mandatory' },
     ];
 
-    await prisma.buildingCode.createMany({ data: codes });
+    await db.buildingCode.createMany({ data: codes });
     res.json({ message: `Seeded ${codes.length} building codes` });
   } catch (error: any) {
     res.status(500).json({ message: error.message });

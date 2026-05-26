@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { prisma } from '../app';
+import { prisma, db } from '../app';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { createNotification } from './notifications';
 
@@ -11,7 +11,7 @@ router.get('/', async (req, res) => {
     const where: any = { published: true };
     if (type) where.type = type;
     if (search) where.name = { contains: search as string };
-    const plans = await prisma.marketplacePlan.findMany({
+    const plans = await db.marketplacePlan.findMany({
       where,
       orderBy: { sales: 'desc' },
       take: 50,
@@ -29,7 +29,7 @@ router.get('/plans', async (req, res) => {
     const where: any = { published: true };
     if (type) where.type = type;
     if (search) where.name = { contains: search as string };
-    const plans = await prisma.marketplacePlan.findMany({
+    const plans = await db.marketplacePlan.findMany({
       where,
       orderBy: { sales: 'desc' },
       take: 50,
@@ -43,7 +43,7 @@ router.get('/plans', async (req, res) => {
 
 router.post('/plans', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const plan = await prisma.marketplacePlan.create({
+    const plan = await db.marketplacePlan.create({
       data: { ...req.body, authorId: req.userId! },
     });
     createNotification({ title: 'Plan Published', message: `"${plan.name}" is now available on the marketplace`, type: 'success', link: `/marketplace`, userId: req.userId! }).catch(() => {});
@@ -55,7 +55,7 @@ router.post('/plans', authenticate, async (req: AuthRequest, res: Response) => {
 
 router.get('/professionals', async (req, res) => {
   try {
-    const members = await prisma.teamMember.findMany({
+    const members = await db.teamMember.findMany({
       where: { status: 'active' },
       include: { user: { select: { id: true, name: true, email: true, role: true, avatar: true } } },
     });
@@ -78,10 +78,10 @@ router.post('/checkout', authenticate, async (req: AuthRequest, res: Response) =
   try {
     const { planId } = req.body;
     if (!planId) return res.status(400).json({ message: 'Plan ID is required' });
-    const plan = await prisma.marketplacePlan.findUnique({ where: { id: planId } });
+    const plan = await db.marketplacePlan.findUnique({ where: { id: planId } });
     if (!plan) return res.status(404).json({ message: 'Plan not found' });
     if (!plan.published) return res.status(400).json({ message: 'Plan is not available' });
-    const order = await prisma.order.create({
+    const order = await db.order.create({
       data: {
         userId: req.userId!,
         total: plan.price,
@@ -90,7 +90,7 @@ router.post('/checkout', authenticate, async (req: AuthRequest, res: Response) =
       },
       include: { items: { include: { plan: true } } },
     });
-    await prisma.marketplacePlan.update({
+    await db.marketplacePlan.update({
       where: { id: planId },
       data: { sales: { increment: 1 } },
     });
@@ -106,7 +106,7 @@ router.post('/checkout', authenticate, async (req: AuthRequest, res: Response) =
 
 router.get('/orders', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const orders = await prisma.order.findMany({
+    const orders = await db.order.findMany({
       where: { userId: req.userId! },
       include: { items: { include: { plan: { include: { author: { select: { id: true, name: true } } } } } } },
       orderBy: { createdAt: 'desc' },
