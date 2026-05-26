@@ -1,4 +1,7 @@
 import { prisma } from '../app';
+import { pythonService } from './pythonServiceManager';
+
+const PYTHON_API = process.env.PYTHON_API_URL || 'http://localhost:8000';
 
 interface AssessmentInput {
   projectId: string;
@@ -174,7 +177,7 @@ function generateRecommendations(result: SustainabilityResult, input: Assessment
   return recs.slice(0, 8);
 }
 
-export async function assessSustainability(input: AssessmentInput): Promise<SustainabilityResult> {
+async function assessFallback(input: AssessmentInput): Promise<SustainabilityResult> {
   const project = await prisma.project.findUnique({ where: { id: input.projectId } });
   if (!project) throw new Error('Project not found');
 
@@ -260,6 +263,62 @@ export async function assessSustainability(input: AssessmentInput): Promise<Sust
   };
 
   result.recommendations = generateRecommendations(result, input);
+  return result;
+}
+
+export async function assessSustainability(input: AssessmentInput): Promise<SustainabilityResult> {
+  const project = await prisma.project.findUnique({ where: { id: input.projectId } });
+  if (!project) throw new Error('Project not found');
+
+  const area = input.area || project.area || 300;
+  const floors = input.floors || project.floors || 2;
+  const type = input.type || project.type || 'Residential';
+  const location = input.location || project.location || '';
+  const style = input.style || project.style || 'Modern';
+  const bedrooms = input.bedrooms || project.bedrooms || 3;
+
+  const gisData = await prisma.gISData.findFirst({ where: { projectId: input.projectId } });
+  const floodRisk = gisData?.floodRisk || null;
+
+  let result: SustainabilityResult | null = null;
+  let aiProvider = false;
+
+  if (pythonService.isHealthy()) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const resp = await fetch(`${PYTHON_API}/api/analyze/sustainability`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          area,
+          floors,
+          building_type: type,
+          style,
+          bedrooms,
+          location: location || null,
+          flood_risk: floodRisk,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (resp.ok) {
+        const data: any = await resp.json();
+        if (data?.assessment) {
+          result = data.assessment as SustainabilityResult;
+          aiProvider = true;
+          if (!result.recommendations) result.recommendations = [];
+          if (!result.breakdown) result.breakdown = {};
+        }
+      }
+    } catch (e: any) {
+      console.log(`Sustainability AI request failed: ${e.message}`);
+    }
+  }
+
+  if (!result) {
+    result = await assessFallback(input);
+  }
 
   await prisma.sustainabilityAssessment.create({
     data: {

@@ -339,7 +339,125 @@ async def analyze_structural(req: StructuralRequest):
     return {**fallback, "provider": "fallback"}
 
 
-@app.post("/api/generate/document")
+class SustainabilityRequest(BaseModel):
+    area: float = 300
+    floors: int = 2
+    building_type: str = "Residential"
+    style: str = "Modern"
+    bedrooms: int = 3
+    location: Optional[str] = None
+    flood_risk: Optional[str] = None
+
+
+SUSTAINABILITY_FALLBACK = {
+    "carbonFootprint": 0,
+    "carbonRating": "C",
+    "energyScore": 55,
+    "energyRating": "C",
+    "solarPotential": "Good",
+    "solarKwhYear": 8000,
+    "waterEfficiency": 50,
+    "waterRating": "C",
+    "passiveCooling": "Good",
+    "floodResilience": "Moderate",
+    "greenMaterialScore": 45,
+    "overallScore": 55,
+    "overallRating": "C",
+    "recommendations": [
+        "Improve building envelope insulation",
+        "Install energy-efficient HVAC system",
+        "Add solar panels to offset grid electricity",
+    ],
+    "breakdown": {"note": "AI unavailable, using estimated values"},
+}
+
+
+@app.post("/api/analyze/sustainability")
+async def analyze_sustainability(req: SustainabilityRequest):
+    system_prompt = (
+        "You are an expert sustainability analyst for building construction. "
+        "Given the building parameters, assess sustainability and return a JSON object with these exact keys: "
+        "carbonFootprint (number, kgCO2), carbonRating (string A+-E), "
+        "energyScore (number 0-100), energyRating (string A+-E), "
+        "solarPotential (string), solarKwhYear (number), "
+        "waterEfficiency (number 0-100), waterRating (string A-E), "
+        "passiveCooling (string), floodResilience (string), "
+        "greenMaterialScore (number 0-100), "
+        "overallScore (number 0-100), overallRating (string A+-E), "
+        "recommendations (array of strings), "
+        "breakdown (object with sub-scores for embodiedCarbon, operationalCarbon, "
+        "solarInsolation, passiveScore, insulationScore, hvacScore, "
+        "lightingScore, waterFixturesScore, rainwaterScore, recyclingScore). "
+        "Output ONLY valid JSON, no markdown, no explanation."
+    )
+    user_prompt = (
+        f"Assess sustainability for: {req.style} {req.building_type}, "
+        f"area {req.area}m\u00B2, {req.floors} floor(s), {req.bedrooms} bedrooms, "
+        f"location '{req.location or 'unspecified'}', "
+        f"flood risk '{req.flood_risk or 'unknown'}'."
+    )
+    try:
+        raw = llm_service.generate(system_prompt, user_prompt)
+        if raw:
+            data = _parse_json(raw)
+            return {"success": True, "assessment": data, "provider": "ai"}
+    except Exception as e:
+        print(f"Sustainability LLM error: {e}")
+
+    carbon_per_m2 = 500 * {"Sierra Leone": 0.42, "Nigeria": 0.48, "Ghana": 0.38, "Kenya": 0.35, "default": 0.40}.get(req.location or "", 0.40)
+    carbon = round(req.area * carbon_per_m2 * (1 + req.floors * 0.24))
+    insolation = {"Sierra Leone": 5.2, "Nigeria": 5.5, "Ghana": 5.0, "Kenya": 5.8, "default": 4.5}.get(req.location or "", 4.5)
+    solar = round(req.area * 0.7 * insolation * 365 * 0.18)
+    energy = round(min(100, 45 + req.floors * 5 + (15 if "Sustainable" in (req.style or "") else 0) + (10 if "Modern" in (req.style or "") else 0)))
+    water = round(min(100, 40 + (10 if req.location else 0) + (15 if "Sustainable" in (req.style or "") else 0)))
+    green = 78 if "Sustainable" in (req.style or "") else 55 if "Modern" in (req.style or "") else 45
+    flood = {"low": "High", "medium": "Moderate", "high": "Low"}.get(req.flood_risk or "", "Moderate")
+    passive = "Excellent" if (req.floors or 1) <= 2 and (req.style or "") in ["Tropical Modern", "Sustainable/Green", "African Contemporary", "Modern"] else "Good" if (req.floors or 1) <= 3 else "Fair"
+    overall = round(
+        (85 if carbon < 300 else 65 if carbon < 550 else 40) * 0.25
+        + energy * 0.25
+        + (80 if solar > 6000 else 55 if solar > 3000 else 30) * 0.15
+        + water * 0.1
+        + (85 if passive == "Excellent" else 65 if passive == "Good" else 40) * 0.1
+        + (85 if flood == "High" else 55 if flood == "Moderate" else 25) * 0.1
+        + green * 0.05
+    )
+
+    def rating(s: float, thresholds: list) -> str:
+        for t, r in thresholds:
+            if s >= t:
+                return r
+        return thresholds[-1][1]
+
+    return {
+        "success": True,
+        "assessment": {
+            "carbonFootprint": carbon,
+            "carbonRating": rating(carbon / max(req.area, 1), [(900, "D"), (700, "C"), (550, "B"), (400, "A"), (0, "A+")]),
+            "energyScore": energy,
+            "energyRating": rating(energy, [(90, "A+"), (80, "A"), (65, "B"), (50, "C"), (35, "D"), (0, "E")]),
+            "solarPotential": "Excellent" if solar > 15000 else "Very Good" if solar > 10000 else "Good" if solar > 6000 else "Fair" if solar > 3000 else "Poor",
+            "solarKwhYear": solar,
+            "waterEfficiency": water,
+            "waterRating": rating(water, [(80, "A"), (60, "B"), (40, "C"), (20, "D"), (0, "E")]),
+            "passiveCooling": passive,
+            "floodResilience": flood,
+            "greenMaterialScore": green,
+            "overallScore": overall,
+            "overallRating": rating(overall, [(85, "A+"), (75, "A"), (60, "B"), (45, "C"), (30, "D"), (0, "E")]),
+            "recommendations": [
+                "Improve building envelope insulation",
+                "Install energy-efficient HVAC system",
+                "Add solar panels to offset grid electricity",
+            ],
+            "breakdown": {
+                "carbonPerM2": round(carbon / max(req.area, 1)),
+                "solarInsolation": insolation,
+                "passiveScore": energy,
+            },
+        },
+        "provider": "fallback",
+    }
 async def generate_document(doc_type: str, project_data: dict):
     try:
         return {
