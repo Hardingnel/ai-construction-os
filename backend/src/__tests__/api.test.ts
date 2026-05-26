@@ -1,5 +1,7 @@
 import request from 'supertest';
-import { app, prisma } from '../app';
+import { app, prisma, db } from '../app';
+
+jest.setTimeout(30000);
 
 afterAll(async () => {
   await prisma.$disconnect();

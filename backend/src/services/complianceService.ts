@@ -1,4 +1,4 @@
-import { prisma } from '../app';
+import { prisma, db } from '../app';
 import { pythonService } from './pythonServiceManager';
 
 const PYTHON_API = process.env.PYTHON_API_URL || 'http://localhost:8000';

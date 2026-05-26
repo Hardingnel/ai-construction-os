@@ -1,12 +1,12 @@
 import { Router, Response } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { prisma } from '../app';
+import { prisma, db } from '../app';
 
 const router = Router();
 
 router.get('/presence/:projectId', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const comments = await prisma.comment.findMany({
+    const comments = await db.comment.findMany({
       where: { projectId: req.params.projectId },
       include: { user: { select: { id: true, name: true, avatar: true } } },
       orderBy: { createdAt: 'desc' },
@@ -21,7 +21,7 @@ router.get('/presence/:projectId', authenticate, async (req: AuthRequest, res: R
 router.post('/comments', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { content, projectId, parentId } = req.body;
-    const comment = await prisma.comment.create({
+    const comment = await db.comment.create({
       data: { content, projectId, parentId, userId: req.userId! },
       include: { user: { select: { id: true, name: true, avatar: true } } },
     });
@@ -35,7 +35,7 @@ router.post('/comments', authenticate, async (req: AuthRequest, res: Response) =
 
 router.get('/events/:projectId', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const events = await prisma.project.findUnique({
+    const events = await db.project.findUnique({
       where: { id: req.params.projectId },
       select: { updatedAt: true },
     });

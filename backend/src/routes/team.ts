@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { prisma } from '../app';
+import { prisma, db } from '../app';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { createNotification } from './notifications';
 
@@ -7,7 +7,7 @@ const router = Router();
 
 router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const team = await prisma.teamMember.findMany({
+    const team = await db.teamMember.findMany({
       include: { user: { select: { id: true, name: true, email: true, role: true, avatar: true } } },
     });
     res.json(team);
@@ -19,7 +19,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
 router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { userId, role } = req.body;
-    const member = await prisma.teamMember.create({
+    const member = await db.teamMember.create({
       data: { userId, role },
       include: { user: { select: { id: true, name: true, email: true, role: true, avatar: true } } },
     });
@@ -34,8 +34,8 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
 
 router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const member = await prisma.teamMember.findUnique({ where: { id: req.params.id }, include: { user: { select: { id: true, name: true } } } });
-    await prisma.teamMember.delete({ where: { id: req.params.id } });
+    const member = await db.teamMember.findUnique({ where: { id: req.params.id }, include: { user: { select: { id: true, name: true } } } });
+    await db.teamMember.delete({ where: { id: req.params.id } });
     if (member && member.userId !== req.userId) {
       createNotification({ title: 'Team Removed', message: `You've been removed from the team`, type: 'warning', userId: member.userId }).catch(() => {});
     }

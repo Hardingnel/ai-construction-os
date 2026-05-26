@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { prisma } from '../app';
+import { prisma, db } from '../app';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { assessSustainability, getAssessmentHistory, getLatestAssessment } from '../services/sustainabilityService';
 import { createNotification } from './notifications';
@@ -8,7 +8,7 @@ const router = Router();
 
 router.post('/assess/:projectId', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const project = await prisma.project.findUnique({ where: { id: req.params.projectId } });
+    const project = await db.project.findUnique({ where: { id: req.params.projectId } });
     if (!project) return res.status(404).json({ message: 'Project not found' });
     const result = await assessSustainability({ projectId: project.id, userId: req.userId! });
     createNotification({ title: 'Sustainability Assessment Complete', message: `Rating: ${result.overallRating || 'N/A'} — Score: ${result.overallScore?.toFixed(1) || 'N/A'}`, type: 'info', link: `/sustainability?projectId=${project.id}`, userId: req.userId! }).catch(() => {});

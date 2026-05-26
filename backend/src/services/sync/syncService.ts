@@ -1,4 +1,4 @@
-import { prisma } from '../../app';
+import { prisma, db } from '../../app';
 
 interface SyncPayload {
   action: 'create' | 'update' | 'delete';
@@ -38,17 +38,17 @@ export class SyncService {
   private async syncProject(action: string, id: string, data: any, userId: string) {
     switch (action) {
       case 'create':
-        return prisma.project.create({ data: { ...data, userId } });
+        return db.project.create({ data: { ...data, userId } });
       case 'update': {
-        const existing = await prisma.project.findUnique({ where: { id } });
+        const existing = await db.project.findUnique({ where: { id } });
         if (!existing) throw new Error('Project not found');
         if (data.version && existing.progress !== data.version) {
           return { conflict: true, serverData: existing, localData: data };
         }
-        return prisma.project.update({ where: { id }, data });
+        return db.project.update({ where: { id }, data });
       }
       case 'delete':
-        return prisma.project.delete({ where: { id } });
+        return db.project.delete({ where: { id } });
       default:
         throw new Error(`Unknown action: ${action}`);
     }
@@ -57,11 +57,11 @@ export class SyncService {
   private async syncDesign(action: string, id: string, data: any, userId: string) {
     switch (action) {
       case 'create':
-        return prisma.design.create({ data: { ...data, userId } });
+        return db.design.create({ data: { ...data, userId } });
       case 'update':
-        return prisma.design.update({ where: { id }, data });
+        return db.design.update({ where: { id }, data });
       case 'delete':
-        return prisma.design.delete({ where: { id } });
+        return db.design.delete({ where: { id } });
       default:
         throw new Error(`Unknown action: ${action}`);
     }
@@ -70,11 +70,11 @@ export class SyncService {
   private async syncBOQItem(action: string, id: string, data: any, userId: string) {
     switch (action) {
       case 'create':
-        return prisma.bOQItem.create({ data });
+        return db.bOQItem.create({ data });
       case 'update':
-        return prisma.bOQItem.update({ where: { id }, data });
+        return db.bOQItem.update({ where: { id }, data });
       case 'delete':
-        return prisma.bOQItem.delete({ where: { id } });
+        return db.bOQItem.delete({ where: { id } });
       default:
         throw new Error(`Unknown action: ${action}`);
     }
@@ -83,11 +83,11 @@ export class SyncService {
   private async syncTask(action: string, id: string, data: any, userId: string) {
     switch (action) {
       case 'create':
-        return prisma.task.create({ data: { ...data, assigneeId: userId } });
+        return db.task.create({ data: { ...data, assigneeId: userId } });
       case 'update':
-        return prisma.task.update({ where: { id }, data });
+        return db.task.update({ where: { id }, data });
       case 'delete':
-        return prisma.task.delete({ where: { id } });
+        return db.task.delete({ where: { id } });
       default:
         throw new Error(`Unknown action: ${action}`);
     }
@@ -97,7 +97,7 @@ export class SyncService {
     const { model, id, serverData } = conflict;
     switch (model) {
       case 'project':
-        return prisma.project.update({ where: { id }, data: serverData });
+        return db.project.update({ where: { id }, data: serverData });
       default:
         throw new Error(`Unknown model for conflict resolution: ${model}`);
     }
@@ -106,9 +106,9 @@ export class SyncService {
   async getSyncSnapshot(userId: string, lastSync?: string) {
     const where = lastSync ? { userId, updatedAt: { gte: new Date(lastSync) } } : { userId };
     const [projects, designs, tasks] = await Promise.all([
-      prisma.project.findMany({ where, include: { boqItems: true, designs: true, tasks: true } }),
-      prisma.design.findMany({ where: { project: { userId } } }),
-      prisma.task.findMany({ where: { project: { userId } } }),
+      db.project.findMany({ where, include: { boqItems: true, designs: true, tasks: true } }),
+      db.design.findMany({ where: { project: { userId } } }),
+      db.task.findMany({ where: { project: { userId } } }),
     ]);
     return { projects, designs, tasks, timestamp: new Date().toISOString() };
   }

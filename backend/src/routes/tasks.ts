@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { prisma } from '../app';
+import { prisma, db } from '../app';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { createNotification } from './notifications';
 
@@ -7,7 +7,7 @@ const router = Router();
 
 router.get('/:projectId', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const tasks = await prisma.task.findMany({
+    const tasks = await db.task.findMany({
       where: { projectId: req.params.projectId, project: { userId: req.userId } },
       include: { assignee: { select: { id: true, name: true, avatar: true } } },
       orderBy: { createdAt: 'desc' },
@@ -21,7 +21,7 @@ router.get('/:projectId', authenticate, async (req: AuthRequest, res: Response) 
 router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { title, description, priority, assigneeId, projectId, dueDate } = req.body;
-    const task = await prisma.task.create({
+    const task = await db.task.create({
       data: { title, description, priority, assigneeId, projectId, dueDate: dueDate ? new Date(dueDate).toISOString() : undefined },
     });
     if (assigneeId && assigneeId !== req.userId) {
@@ -37,8 +37,8 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
 
 router.put('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const existing = await prisma.task.findUnique({ where: { id: req.params.id } });
-    const task = await prisma.task.update({
+    const existing = await db.task.findUnique({ where: { id: req.params.id } });
+    const task = await db.task.update({
       where: { id: req.params.id },
       data: req.body,
     });
@@ -59,7 +59,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 
 router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    await prisma.task.delete({ where: { id: req.params.id } });
+    await db.task.delete({ where: { id: req.params.id } });
     res.json({ message: 'Task deleted' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to delete task' });

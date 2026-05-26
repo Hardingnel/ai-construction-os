@@ -1,4 +1,4 @@
-import { prisma } from '../app';
+import { prisma, db } from '../app';
 import { pythonService } from './pythonServiceManager';
 
 const PYTHON_API = process.env.PYTHON_API_URL || 'http://localhost:8000';
@@ -251,7 +251,7 @@ export async function searchGlossary(query?: string, category?: string, difficul
 export async function glossarySeed() {
   let count = 0;
   for (const entry of GLOSSARY_ENTRIES) {
-    await prisma.glossaryEntry.upsert({
+    await db.glossaryEntry.upsert({
       where: { term: entry.term },
       update: {},
       create: entry,
@@ -263,22 +263,22 @@ export async function glossarySeed() {
 
 export async function mentorChat(req: MentorRequest) {
   let session = req.sessionId
-    ? await prisma.tutorSession.findUnique({ where: { id: req.sessionId } })
+    ? await db.tutorSession.findUnique({ where: { id: req.sessionId } })
     : null;
 
   if (!session) {
-    session = await prisma.tutorSession.create({
+    session = await db.tutorSession.create({
       data: { userId: req.userId, topic: req.question.slice(0, 100), context: req.context },
     });
   }
 
-  const userMessage = await prisma.tutorMessage.create({
+  const userMessage = await db.tutorMessage.create({
     data: { sessionId: session.id, role: 'user', content: req.question },
   });
 
   const { response, relatedTerms } = await generateMentorResponse(req.question, session.context || undefined);
 
-  const tutorMessage = await prisma.tutorMessage.create({
+  const tutorMessage = await db.tutorMessage.create({
     data: {
       sessionId: session.id,
       role: 'assistant',
@@ -371,7 +371,7 @@ async function generateMentorResponse(question: string, context?: string): Promi
 }
 
 export async function getSessionHistory(userId: string) {
-  return prisma.tutorSession.findMany({
+  return db.tutorSession.findMany({
     where: { userId },
     orderBy: { updatedAt: 'desc' },
     include: { messages: { orderBy: { createdAt: 'asc' }, take: 2 } },
@@ -380,7 +380,7 @@ export async function getSessionHistory(userId: string) {
 }
 
 export async function getSessionMessages(sessionId: string) {
-  return prisma.tutorMessage.findMany({
+  return db.tutorMessage.findMany({
     where: { sessionId },
     orderBy: { createdAt: 'asc' },
   });

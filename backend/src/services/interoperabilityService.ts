@@ -1,4 +1,4 @@
-import { prisma } from '../app';
+import { prisma, db } from '../app';
 
 interface FormatElement {
   id: string;
@@ -466,7 +466,7 @@ export async function importFile(projectId: string, userId: string, content: str
 
   const model = normalizeToModel(content, format, fileName.replace(/\.[^.]+$/, ''));
 
-  const job = await prisma.importExportJob.create({
+  const job = await db.importExportJob.create({
     data: {
       projectId,
       userId,
@@ -492,12 +492,12 @@ export async function exportModel(projectId: string, userId: string, targetForma
     return { success: false, message: `Unsupported target format: ${targetFormat}` };
   }
 
-  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  const project = await db.project.findUnique({ where: { id: projectId } });
   if (!project) return { success: false, message: 'Project not found' };
 
-  const designs = await prisma.design.findMany({ where: { projectId }, take: 10 });
-  const boqItems = await prisma.bOQItem.findMany({ where: { projectId }, take: 10 });
-  const phases = await prisma.projectPhase.findMany({ where: { projectId }, take: 10 });
+  const designs = await db.design.findMany({ where: { projectId }, take: 10 });
+  const boqItems = await db.bOQItem.findMany({ where: { projectId }, take: 10 });
+  const phases = await db.projectPhase.findMany({ where: { projectId }, take: 10 });
 
   const elements: FormatElement[] = [];
 
@@ -546,7 +546,7 @@ export async function exportModel(projectId: string, userId: string, targetForma
 
   const resultData = convertModel(model, targetFormat);
 
-  const job = await prisma.importExportJob.create({
+  const job = await db.importExportJob.create({
     data: {
       projectId,
       userId,
@@ -581,7 +581,7 @@ export async function convertFile(userId: string, content: string, sourceFormat:
   const model = normalizeToModel(content, sourceFormat, 'converted');
   const resultData = convertModel(model, targetFormat);
 
-  const record = await prisma.conversionRecord.create({
+  const record = await db.conversionRecord.create({
     data: {
       sourceFormat,
       targetFormat,
@@ -597,15 +597,15 @@ export async function convertFile(userId: string, content: string, sourceFormat:
 }
 
 export async function getJobHistory(projectId: string) {
-  return prisma.importExportJob.findMany({ where: { projectId }, orderBy: { createdAt: 'desc' }, take: 20 });
+  return db.importExportJob.findMany({ where: { projectId }, orderBy: { createdAt: 'desc' }, take: 20 });
 }
 
 export async function getJob(jobId: string) {
-  return prisma.importExportJob.findUnique({ where: { id: jobId } });
+  return db.importExportJob.findUnique({ where: { id: jobId } });
 }
 
 export async function getConversionHistory(userId: string) {
-  return prisma.conversionRecord.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 20 });
+  return db.conversionRecord.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 20 });
 }
 
 export { SUPPORTED_FORMATS, detectFormat, normalizeToModel, convertModel };

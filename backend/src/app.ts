@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { PrismaClient } from '@prisma/client';
+import { createClient } from '@supabase/supabase-js';
 import { authRouter } from './routes/auth';
 import { projectsRouter } from './routes/projects';
 import { designsRouter } from './routes/designs';
@@ -30,8 +31,14 @@ import { interoperabilityRouter } from './routes/interoperability';
 import { bimRouter } from './routes/bim';
 import { pythonRouter } from './routes/python';
 import { pdfRouter } from './routes/pdf';
+import { db as _db } from './services/db';
 
 export const prisma = new PrismaClient();
+export const supabase = createClient(
+  process.env.SUPABASE_URL || 'https://rwvhjyvqdydrpcwsglbz.supabase.co',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+);
+export const db = _db;
 const app = express();
 const httpServer = createServer(app);
 
@@ -147,5 +154,6 @@ app.use((error: any, _req: express.Request, res: express.Response, _next: expres
 export function getIO() { return io; }
 
 export function getPrisma() { return prisma; }
+export function getSupabase() { return supabase; }
 
 export { app, httpServer, io };

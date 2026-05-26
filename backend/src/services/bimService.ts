@@ -1,4 +1,4 @@
-import { prisma } from '../app';
+import { prisma, db } from '../app';
 import { pythonService } from './pythonServiceManager';
 
 const PYTHON_API = process.env.PYTHON_API_URL || 'http://localhost:8000';
@@ -94,7 +94,7 @@ function rectsOverlap(a: { x: number; y: number; w: number; h: number }, b: { x:
 }
 
 export async function createFloorPlan(projectId: string, userId: string, input: FloorPlanInput) {
-  const plan = await prisma.bIMFloorPlan.create({
+  const plan = await db.bIMFloorPlan.create({
     data: {
       projectId,
       userId,
@@ -111,7 +111,7 @@ export async function createFloorPlan(projectId: string, userId: string, input: 
 }
 
 export async function getFloorPlans(projectId: string) {
-  return prisma.bIMFloorPlan.findMany({
+  return db.bIMFloorPlan.findMany({
     where: { projectId },
     orderBy: { floorLevel: 'asc' },
     include: { bimElements: { orderBy: { createdAt: 'asc' } } },
@@ -119,7 +119,7 @@ export async function getFloorPlans(projectId: string) {
 }
 
 export async function getFloorPlan(planId: string) {
-  return prisma.bIMFloorPlan.findUnique({
+  return db.bIMFloorPlan.findUnique({
     where: { id: planId },
     include: { bimElements: { orderBy: { createdAt: 'asc' } } },
   });
@@ -134,19 +134,19 @@ export async function updateFloorPlan(planId: string, input: Partial<FloorPlanIn
   if (input.height !== undefined) data.height = input.height;
   if (input.scale !== undefined) data.scale = input.scale;
   if (input.settings !== undefined) data.settings = JSON.stringify(input.settings);
-  return prisma.bIMFloorPlan.update({ where: { id: planId }, data });
+  return db.bIMFloorPlan.update({ where: { id: planId }, data });
 }
 
 export async function deleteFloorPlan(planId: string) {
-  await prisma.bIMElement.deleteMany({ where: { floorPlanId: planId } });
-  return prisma.bIMFloorPlan.delete({ where: { id: planId } });
+  await db.bIMElement.deleteMany({ where: { floorPlanId: planId } });
+  return db.bIMFloorPlan.delete({ where: { id: planId } });
 }
 
 export async function addElement(floorPlanId: string, input: ElementInput) {
   const classification = IFC_CLASSIFICATIONS[input.type] || 'IfcBuildingElementProxy';
   const subtypeConfidence = CLASSIFICATION_CONFIDENCE[input.type]?.[input.subType || ''] || 0.85;
 
-  return prisma.bIMElement.create({
+  return db.bIMElement.create({
     data: {
       floorPlanId,
       type: input.type,
@@ -185,19 +185,19 @@ export async function updateElement(elementId: string, input: Partial<ElementInp
   if (input.properties !== undefined) data.properties = JSON.stringify(input.properties);
   if (input.layer !== undefined) data.layer = input.layer;
   if (input.color !== undefined) data.color = input.color;
-  return prisma.bIMElement.update({ where: { id: elementId }, data });
+  return db.bIMElement.update({ where: { id: elementId }, data });
 }
 
 export async function deleteElement(elementId: string) {
-  return prisma.bIMElement.delete({ where: { id: elementId } });
+  return db.bIMElement.delete({ where: { id: elementId } });
 }
 
 export async function deleteElementsByPlan(floorPlanId: string, elementIds: string[]) {
-  return prisma.bIMElement.deleteMany({ where: { floorPlanId, id: { in: elementIds } } });
+  return db.bIMElement.deleteMany({ where: { floorPlanId, id: { in: elementIds } } });
 }
 
 export async function autoClassifyElements(floorPlanId: string) {
-  const elements = await prisma.bIMElement.findMany({ where: { floorPlanId } });
+  const elements = await db.bIMElement.findMany({ where: { floorPlanId } });
   const results: any[] = [];
 
   for (const element of elements) {
@@ -238,7 +238,7 @@ export async function autoClassifyElements(floorPlanId: string) {
     const ifcClass = IFC_CLASSIFICATIONS[detectedType] || 'IfcBuildingElementProxy';
     const finalConfidence = Math.max(confidence, element.classificationScore || 0);
 
-    await prisma.bIMElement.update({
+    await db.bIMElement.update({
       where: { id: element.id },
       data: {
         classification: ifcClass,
@@ -262,7 +262,7 @@ export async function autoClassifyElements(floorPlanId: string) {
 }
 
 export async function detectClashes(floorPlanId: string): Promise<ClashResult[]> {
-  const elements = await prisma.bIMElement.findMany({ where: { floorPlanId } });
+  const elements = await db.bIMElement.findMany({ where: { floorPlanId } });
   const clashes: ClashResult[] = [];
 
   for (let i = 0; i < elements.length; i++) {
@@ -298,7 +298,7 @@ export async function detectClashes(floorPlanId: string): Promise<ClashResult[]>
 }
 
 export async function quantityTakeoff(floorPlanId: string) {
-  const elements = await prisma.bIMElement.findMany({ where: { floorPlanId } });
+  const elements = await db.bIMElement.findMany({ where: { floorPlanId } });
 
   const takeoff: Record<string, { count: number; totalArea: number; totalLength: number; subtypes: Record<string, number>; materials: Record<string, number> }> = {};
 
@@ -342,7 +342,7 @@ export async function generateBIMAssistantResponse(query: string, floorPlanId?: 
   let elementsContext = '';
 
   if (floorPlanId) {
-    const plan = await prisma.bIMFloorPlan.findUnique({
+    const plan = await db.bIMFloorPlan.findUnique({
       where: { id: floorPlanId },
       include: { bimElements: true },
     });
