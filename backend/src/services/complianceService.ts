@@ -1,3 +1,8 @@
+import { prisma } from '../app';
+import { pythonService } from './pythonServiceManager';
+
+const PYTHON_API = process.env.PYTHON_API_URL || 'http://localhost:8000';
+
 interface ComplianceRule {
   code: string;
   title: string;
@@ -242,7 +247,7 @@ function getSeverityWeight(severity: string): number {
   }
 }
 
-export function runComplianceCheck(project: any, country: string): ComplianceSummary {
+function runFallbackCheck(project: any, country: string): ComplianceSummary {
   const rules = getRulesForCountry(country);
   const results = rules.map((rule) => {
     const { passed, finding, recommendation } = rule.check(project);
@@ -292,6 +297,40 @@ export function runComplianceCheck(project: any, country: string): ComplianceSum
     score,
     results,
   };
+}
+
+export async function runComplianceCheck(project: any, country: string): Promise<ComplianceSummary> {
+  if (pythonService.isHealthy()) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const resp = await fetch(`${PYTHON_API}/api/analyze/compliance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          country,
+          project_type: project.type || 'Residential',
+          floors: project.floors || 2,
+          area: project.area || 300,
+          style: project.style || 'Modern',
+          bedrooms: project.bedrooms || 3,
+          location: project.location || null,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (resp.ok) {
+        const data: any = await resp.json();
+        if (data?.compliance?.results) {
+          return data.compliance as ComplianceSummary;
+        }
+      }
+    } catch (e: any) {
+      console.log(`Compliance AI request failed: ${e.message}`);
+    }
+  }
+
+  return runFallbackCheck(project, country);
 }
 
 export function getSupportedCountries(): Array<{ id: string; name: string }> {

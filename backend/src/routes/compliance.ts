@@ -32,7 +32,7 @@ router.post('/check/:projectId', authenticate, async (req: AuthRequest, res: Res
     });
     if (!project) return res.status(404).json({ message: 'Project not found' });
 
-    const summary = runComplianceCheck(project, country);
+    const summary = await runComplianceCheck(project, country);
 
     const check = await prisma.complianceCheck.create({
       data: {

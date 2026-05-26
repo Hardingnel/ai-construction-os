@@ -372,6 +372,16 @@ SUSTAINABILITY_FALLBACK = {
 }
 
 
+class ComplianceRequest(BaseModel):
+    country: str
+    project_type: Optional[str] = "Residential"
+    floors: int = 2
+    area: float = 300
+    style: Optional[str] = "Modern"
+    bedrooms: int = 3
+    location: Optional[str] = None
+
+
 @app.post("/api/analyze/sustainability")
 async def analyze_sustainability(req: SustainabilityRequest):
     system_prompt = (
@@ -458,6 +468,37 @@ async def analyze_sustainability(req: SustainabilityRequest):
         },
         "provider": "fallback",
     }
+
+
+@app.post("/api/analyze/compliance")
+async def analyze_compliance(req: ComplianceRequest):
+    system_prompt = (
+        "You are an expert building compliance officer familiar with international building codes. "
+        "Given the country and building parameters, run a compliance check and return a JSON object with: "
+        "country (string), countryName (string), "
+        "total (number), passed (number), failed (number), warnings (number), score (number 0-100), "
+        "results (array of objects each with: code, title, status (passed/failed/warning), "
+        "category, severity (mandatory/advisory), description, requirement, finding, recommendation). "
+        "Include at least 4-8 compliance rules relevant to the given country. "
+        "Output ONLY valid JSON, no markdown, no explanation."
+    )
+    user_prompt = (
+        f"Run compliance check for {req.country}: {req.style} {req.project_type}, "
+        f"{req.floors} floor(s), {req.area}m\u00B2, {req.bedrooms} bedrooms, "
+        f"location '{req.location or 'unspecified'}'."
+    )
+    try:
+        raw = llm_service.generate(system_prompt, user_prompt)
+        if raw:
+            data = _parse_json(raw)
+            return {"success": True, "compliance": data, "provider": "ai"}
+    except Exception as e:
+        print(f"Compliance LLM error: {e}")
+
+    return {"success": True, "compliance": {"country": req.country, "countryName": req.country, "total": 0, "passed": 0, "failed": 0, "warnings": 0, "score": 0, "results": []}, "provider": "fallback"}
+
+
+@app.post("/api/generate/document")
 async def generate_document(doc_type: str, project_data: dict):
     try:
         return {
