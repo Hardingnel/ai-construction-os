@@ -260,7 +260,7 @@ export function Marketplace() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={checkoutOpen} onOpenChange={(open) => { if (!open && checkoutStep !== 'confirm') setCheckoutOpen(false); else if (!open) { setCheckoutOpen(false); setCheckoutStep('review'); } }}>
+      <Dialog open={checkoutOpen} onOpenChange={(open: boolean) => { if (!open && checkoutStep !== 'confirm') setCheckoutOpen(false); else if (!open) { setCheckoutOpen(false); setCheckoutStep('review'); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
