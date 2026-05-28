@@ -298,7 +298,7 @@ export function DesignStudio() {
     setAiSuggestions(null);
     try {
       const elementSummary = elements.map(el => `${el.type} at (${Math.round(el.x)}, ${Math.round(el.y)})${el.width ? ` ${el.width}x${el.height}` : ''}`).join('; ');
-      const res = await api.post('/generations', {
+      const res = await api.post<any>('/generations', {
         prompt: `Analyze this floor plan design: ${elementSummary}. Suggest improvements for layout, structure, and sustainability.`,
         type: 'design',
         building_type: 'residential',

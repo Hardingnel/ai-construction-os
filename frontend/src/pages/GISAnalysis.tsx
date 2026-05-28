@@ -81,7 +81,7 @@ async function runAnalysis(lat: number, lng: number, setAnalyzing: (v: boolean) 
   setAnalyzing(true);
   setAnalysisError(null);
   try {
-    const res = await api.post('/gis/analyze', { latitude: lat, longitude: lng, analysis_types: ['flood', 'elevation', 'sunlight'] });
+    const res = await api.post<any>('/gis/analyze', { latitude: lat, longitude: lng, analysis_types: ['flood', 'elevation', 'sunlight'] });
     if (res.analysis) {
       setAnalysis(res.analysis);
       setOverallSuitability(res.overall_suitability || 'moderate');
