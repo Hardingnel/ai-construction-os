@@ -30,6 +30,8 @@ import { interoperabilityRouter } from './routes/interoperability';
 import { bimRouter } from './routes/bim';
 import { pythonRouter } from './routes/python';
 import { pdfRouter } from './routes/pdf';
+import { adminRouter } from './routes/admin';
+import { tenantMiddleware } from './middleware/tenant';
 import { db as _db, prisma as _prisma } from './services/db';
 
 export const prisma = _prisma;
@@ -76,6 +78,9 @@ app.use('/api/interoperability', interoperabilityRouter);
 app.use('/api/bim', bimRouter);
 app.use('/api/python', pythonRouter);
 app.use('/api/pdf', pdfRouter);
+app.use('/api/admin', adminRouter);
+
+app.use(tenantMiddleware);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

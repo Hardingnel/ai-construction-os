@@ -18,6 +18,10 @@ export const NAV_ITEMS = [
   { label: 'Settings', icon: 'Settings', path: '/settings', shortcut: 'Alt+S' },
 ];
 
+export const SUPER_ADMIN_ITEMS = [
+  { label: 'Admin', icon: 'ShieldCheck', path: '/admin', shortcut: 'Alt+A' },
+];
+
 export const BUILDING_STYLES = [
   'Modern', 'Contemporary', 'Minimalist', 'Industrial', 'Mediterranean',
   'African Contemporary', 'Colonial', 'Victorian', 'Tropical Modern',
