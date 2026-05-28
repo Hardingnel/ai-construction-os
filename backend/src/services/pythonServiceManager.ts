@@ -3,7 +3,7 @@ import path from 'path';
 import { EventEmitter } from 'events';
 
 const PYTHON_API_URL = process.env.PYTHON_API_URL || 'http://localhost:8000';
-const PYTHON_SCRIPT = process.env.PYTHON_SCRIPT || path.resolve(__dirname, '../../python-services/service.py');
+const PYTHON_SCRIPT = process.env.PYTHON_SCRIPT || path.resolve(__dirname, '../../../python-services/service.py');
 const PYTHON_PORT = parseInt(process.env.PYTHON_API_PORT || '8000', 10);
 const HEALTH_CHECK_INTERVAL = parseInt(process.env.PYTHON_HEALTH_INTERVAL || '15000', 10);
 const MAX_RETRIES = parseInt(process.env.PYTHON_MAX_RETRIES || '5', 10);
