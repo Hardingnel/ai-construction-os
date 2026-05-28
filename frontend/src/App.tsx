@@ -10,6 +10,7 @@ import { Projects } from '@/pages/Projects';
 import { Marketplace } from '@/pages/Marketplace';
 import { Team } from '@/pages/Team';
 import { Settings } from '@/pages/Settings';
+import { AdminDashboard } from '@/pages/Admin';
 import { Compliance } from '@/pages/Compliance';
 import { Sustainability } from '@/pages/Sustainability';
 import { Tutor } from '@/pages/Tutor';
@@ -53,6 +54,7 @@ export default function App() {
               <Route path="/tutor" element={<Tutor />} />
               <Route path="/interoperability" element={<Interoperability />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/admin" element={<AdminDashboard />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </AppShell>

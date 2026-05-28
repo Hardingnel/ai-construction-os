@@ -6,13 +6,13 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = localStorage.getItem('aicos-token');
+  const tenantId = (() => { try { const t = localStorage.getItem('aicos-active-tenant'); return t ? JSON.parse(t).id : undefined; } catch { return undefined; } })();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (tenantId) headers['x-tenant-id'] = tenantId;
   const response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
     headers,
